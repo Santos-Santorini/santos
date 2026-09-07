@@ -321,6 +321,100 @@ describe("mOffice size collapse", () => {
 });
 
 describe("mOffice feed discounts", () => {
+  it("keeps an admin online-only price while refreshing stock from a later mOffice sync", () => {
+    const existing = row({
+      price_net: 10000,
+      price_gross: 15000,
+      price_final_gross: 12000,
+      rebate_percent: 20,
+      raw_payload: {
+        source: "moffice",
+        commerceOverrides: { price: true },
+        attributes: { size: ["45"] },
+        moffice: { id: 79404, size: "45", stock: 2, syncedRunId: "old-run" },
+      },
+    });
+
+    const plan = buildMofficeSyncPlan({
+      runId: "new-run",
+      items: [item({
+        ARTIKAL_ID: 79404,
+        ARTIKAL_SIFRA: "133051",
+        ARTIKAL_BARKOD: "013305145",
+        ARTIKAL_VELICINA: "45",
+        ARTIKAL_ZALIHE: 7,
+        ARTIKAL_MP_CENA: 15900,
+        ARTIKAL_VP_CENA: 13250,
+      })],
+      existing: [existing],
+    });
+
+    expect(plan.rows).toHaveLength(1);
+    expect(plan.rows[0]).toMatchObject({
+      stock_total: 7,
+      stock_warehouse_1: 7,
+      price_net: 10000,
+      price_gross: 15000,
+      price_final_gross: 12000,
+      rebate_percent: 20,
+    });
+    expect(plan.rows[0].raw_payload).toMatchObject({
+      commerceOverrides: { price: true },
+      moffice: { stock: 7, priceGross: 15900, priceNet: 13250, syncedRunId: "new-run" },
+    });
+  });
+
+  it("applies one admin online-only price to every mOffice variant of the SKU", () => {
+    const overridden = row({
+      legacy_id: 10,
+      ean: "013305144",
+      price_net: 8250,
+      price_gross: 15000,
+      price_final_gross: 12000,
+      rebate_percent: 20,
+      raw_payload: {
+        source: "moffice",
+        commerceOverrides: { price: true, priceUpdatedAt: "2026-09-08T08:00:00.000Z" },
+        attributes: { size: ["44"] },
+        moffice: { id: 79404, size: "44", stock: 1, syncedRunId: "old-run" },
+      },
+    });
+    const sibling = row({
+      legacy_id: 11,
+      ean: "013305145",
+      price_net: 8250,
+      price_gross: 15900,
+      price_final_gross: 15900,
+      rebate_percent: 0,
+      raw_payload: {
+        source: "moffice",
+        attributes: { size: ["45"] },
+        moffice: { id: 79405, size: "45", stock: 2, syncedRunId: "old-run" },
+      },
+    });
+
+    const plan = buildMofficeSyncPlan({
+      runId: "new-run",
+      items: [
+        item({ ARTIKAL_ID: 79404, ARTIKAL_BARKOD: "013305144", ARTIKAL_VELICINA: "44", ARTIKAL_ZALIHE: 3, ARTIKAL_MP_CENA: 15900 }),
+        item({ ARTIKAL_ID: 79405, ARTIKAL_BARKOD: "013305145", ARTIKAL_VELICINA: "45", ARTIKAL_ZALIHE: 4, ARTIKAL_MP_CENA: 15900 }),
+      ],
+      existing: [overridden, sibling],
+    });
+
+    expect(plan.rows).toHaveLength(2);
+    expect(plan.rows.map((planned) => ({
+      stock: planned.stock_total,
+      gross: planned.price_gross,
+      final: planned.price_final_gross,
+      rebate: planned.rebate_percent,
+      override: (planned.raw_payload as Record<string, any>).commerceOverrides?.price,
+    }))).toEqual([
+      { stock: 3, gross: 15000, final: 12000, rebate: 20, override: true },
+      { stock: 4, gross: 15000, final: 12000, rebate: 20, override: true },
+    ]);
+  });
+
   it("prices a row at full MP when the feed carries no discount field", () => {
     const plan = buildMofficeSyncPlan({
       runId: "run-nodisc",

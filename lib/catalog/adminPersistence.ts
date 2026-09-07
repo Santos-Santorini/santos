@@ -4,6 +4,9 @@ export type CatalogPersistenceRow = {
   legacy_id: number;
   sku: string | null;
   name_sr?: string | null;
+  price_gross?: number | null;
+  price_final_gross?: number | null;
+  rebate_percent?: number | null;
   raw_payload: JsonRecord | null;
   [key: string]: unknown;
 };
@@ -70,6 +73,12 @@ export const mergeFreshAdminStateIntoMofficeRows = <T extends CatalogPersistence
   const currentById = new Map(currentRows.map((row) => [Number(row.legacy_id), row]));
   const modelNameBySku = new Map<string, string>();
   const hiddenSkus = new Set<string>();
+  const manualPriceBySku = new Map<string, {
+    priceGross: number;
+    priceFinalGross: number;
+    rebatePercent: number;
+    updatedAt: string;
+  }>();
 
   for (const row of currentRows) {
     const key = skuKey(row.sku);
@@ -78,6 +87,19 @@ export const mergeFreshAdminStateIntoMofficeRows = <T extends CatalogPersistence
     const name = String(row.name_sr || "").trim();
     if (payload.nameOverride === true && name && !modelNameBySku.has(key)) modelNameBySku.set(key, name);
     if (payload.hiddenFromShop === true) hiddenSkus.add(key);
+    const overrides = asRecord(payload.commerceOverrides);
+    if (overrides.price === true) {
+      const updatedAt = String(overrides.priceUpdatedAt || "");
+      const currentPrice = manualPriceBySku.get(key);
+      if (!currentPrice || updatedAt >= currentPrice.updatedAt) {
+        manualPriceBySku.set(key, {
+          priceGross: Number(row.price_gross ?? 0),
+          priceFinalGross: Number(row.price_final_gross ?? 0),
+          rebatePercent: Number(row.rebate_percent ?? 0),
+          updatedAt,
+        });
+      }
+    }
   }
 
   return plannedRows.map((planned) => {
@@ -101,14 +123,29 @@ export const mergeFreshAdminStateIntoMofficeRows = <T extends CatalogPersistence
 
     const key = skuKey(planned.sku);
     const modelName = modelNameBySku.get(key);
+    const manualPrice = manualPriceBySku.get(key);
     if (modelName) {
       nextPayload.nameOverride = true;
     }
     if (hiddenSkus.has(key)) nextPayload.hiddenFromShop = true;
+    if (manualPrice) {
+      nextPayload.commerceOverrides = {
+        ...asRecord(nextPayload.commerceOverrides),
+        price: true,
+        ...(manualPrice.updatedAt ? { priceUpdatedAt: manualPrice.updatedAt } : {}),
+      };
+    }
 
     return {
       ...planned,
       ...(modelName ? { name_sr: modelName } : {}),
+      ...(manualPrice
+        ? {
+            price_gross: manualPrice.priceGross,
+            price_final_gross: manualPrice.priceFinalGross,
+            rebate_percent: manualPrice.rebatePercent,
+          }
+        : {}),
       raw_payload: nextPayload,
     };
   });

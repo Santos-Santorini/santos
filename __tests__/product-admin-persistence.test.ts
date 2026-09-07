@@ -68,6 +68,63 @@ describe("catalog admin persistence across mOffice sync", () => {
     expect(merged.raw_payload).toMatchObject({ nameOverride: true, hiddenFromShop: true });
   });
 
+  it("keeps a SKU-wide online price saved while an mOffice sync is already running", () => {
+    const planned = [
+      {
+        legacy_id: 10,
+        sku: "129672",
+        stock_total: 5,
+        price_gross: 15900,
+        price_final_gross: 15900,
+        rebate_percent: 0,
+        raw_payload: { source: "moffice", attributes: { size: ["S"] }, moffice: { stock: 5 } },
+      },
+      {
+        legacy_id: 11,
+        sku: "129672",
+        stock_total: 7,
+        price_gross: 15900,
+        price_final_gross: 15900,
+        rebate_percent: 0,
+        raw_payload: { source: "moffice", attributes: { size: ["M"] }, moffice: { stock: 7 } },
+      },
+    ];
+    const current = [
+      {
+        legacy_id: 10,
+        sku: "129672",
+        price_gross: 15000,
+        price_final_gross: 12000,
+        rebate_percent: 20,
+        raw_payload: {
+          source: "moffice",
+          commerceOverrides: { price: true, priceUpdatedAt: "2026-09-08T08:00:00.000Z" },
+        },
+      },
+      {
+        legacy_id: 11,
+        sku: "129672",
+        price_gross: 15900,
+        price_final_gross: 15900,
+        rebate_percent: 0,
+        raw_payload: { source: "moffice" },
+      },
+    ];
+
+    const merged = mergeFreshAdminStateIntoMofficeRows(planned, current);
+
+    expect(merged.map((row) => ({
+      stock: row.stock_total,
+      gross: row.price_gross,
+      final: row.price_final_gross,
+      rebate: row.rebate_percent,
+      override: (row.raw_payload as Record<string, any>).commerceOverrides?.price,
+    }))).toEqual([
+      { stock: 5, gross: 15000, final: 12000, rebate: 20, override: true },
+      { stock: 7, gross: 15000, final: 12000, rebate: 20, override: true },
+    ]);
+  });
+
   it("treats mOffice rows as hide-only and manual rows as hard deletions", () => {
     const result = classifyCatalogRemovalRows([
       { legacy_id: 1, sku: "129672", raw_payload: { source: "moffice", moffice: { id: 75670 } } },

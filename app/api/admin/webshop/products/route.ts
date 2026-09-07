@@ -415,8 +415,10 @@ const applyUpdateToLegacyFile = async (patch: ProductUpdatePayload) => {
  * client was re-typing the same thing five times per product. Images already
  * fanned out across the SKU; this is the rest of it.
  *
- * Everything left out is deliberately per-size: EAN, stock, price, and the
+ * Everything left out is deliberately per-size: EAN, stock, and the
  * active/export flags, which is how a single size gets taken out of the shop.
+ * A manually overridden online price is the exception: customers see one
+ * model with size variants, so that price must be identical across its SKU.
  */
 const MODEL_LEVEL_COLUMNS = ["name_sr", "description_sr", "specification_sr", "brand"] as const;
 
@@ -448,10 +450,16 @@ const propagateToSkuSiblings = async (
   for (const column of MODEL_LEVEL_COLUMNS) {
     if (update[column] !== undefined) columnPatch[column] = update[column];
   }
+  if (patch.priceOverride === true) {
+    for (const column of ["price_gross", "price_final_gross", "rebate_percent"] as const) {
+      if (update[column] !== undefined) columnPatch[column] = update[column];
+    }
+  }
   /* Keyed off the patch, not off the merged payload: the payload written to the
      edited row carries every key it already had, so copying from it would push
      unrelated fields onto the siblings on every save. */
   const rawKeys = MODEL_LEVEL_RAW_KEYS.filter((entry) => entry.touched(patch)).map((entry) => entry.key);
+  if (patch.priceOverride !== undefined) rawKeys.push("commerceOverrides");
   if (Object.keys(columnPatch).length === 0 && rawKeys.length === 0) return;
 
   const rawPatch = (update.raw_payload || {}) as Record<string, unknown>;

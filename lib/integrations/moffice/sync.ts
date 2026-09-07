@@ -653,6 +653,17 @@ export function buildMofficeSyncPlan(params: {
      that hole, which is the "renaming sticks on some products, not others"
      complaint on the sync side. */
   const overriddenNameBySku = new Map<string, string>();
+  /* An online-only price belongs to the sellable model, not one physical size
+     row. Older admin saves marked only the edited variant, so discover the
+     newest override per SKU and fan it out while planning the next sync. This
+     also covers a size/color that appears in mOffice for the first time. */
+  const manualPriceBySku = new Map<string, {
+    priceNet: number;
+    priceGross: number;
+    priceFinalGross: number;
+    rebatePercent: number;
+    updatedAt: string;
+  }>();
 
   for (const row of params.existing) {
     const ean = normalizeLower(row.ean);
@@ -669,6 +680,23 @@ export function buildMofficeSyncPlan(params: {
     if (sku && payload.nameOverride === true) {
       const overridden = String(row.name_sr || "").trim();
       if (overridden && !overriddenNameBySku.has(sku)) overriddenNameBySku.set(sku, overridden);
+    }
+    if (sku && hasManualPriceOverride(payload)) {
+      const overrides =
+        payload.commerceOverrides && typeof payload.commerceOverrides === "object"
+          ? (payload.commerceOverrides as Record<string, unknown>)
+          : {};
+      const updatedAt = String(overrides.priceUpdatedAt || "");
+      const current = manualPriceBySku.get(sku);
+      if (!current || updatedAt >= current.updatedAt) {
+        manualPriceBySku.set(sku, {
+          priceNet: Number(row.price_net ?? 0),
+          priceGross: Number(row.price_gross ?? 0),
+          priceFinalGross: Number(row.price_final_gross ?? 0),
+          rebatePercent: Number(row.rebate_percent ?? 0),
+          updatedAt,
+        });
+      }
     }
     if (sku) {
       for (const size of candidateSizes) {
@@ -756,7 +784,8 @@ export function buildMofficeSyncPlan(params: {
     const tax = safeNumber(item.ARTIKAL_PDV_STOPA, 20);
     const stock = Math.max(0, Math.floor(safeNumber(item.ARTIKAL_ZALIHE, 0)));
     const pricing = resolveFeedPricing(item, mpPrice);
-    const keepManualPrice = hasManualPriceOverride(existingPayload);
+    const manualPrice = manualPriceBySku.get(skuKey);
+    const keepManualPrice = Boolean(manualPrice);
 
     const payload: Record<string, unknown> = {
       ...existingPayload,
@@ -776,6 +805,17 @@ export function buildMofficeSyncPlan(params: {
         syncedRunId: params.runId,
       },
     };
+    if (manualPrice) {
+      const currentOverrides =
+        payload.commerceOverrides && typeof payload.commerceOverrides === "object"
+          ? (payload.commerceOverrides as Record<string, unknown>)
+          : {};
+      payload.commerceOverrides = {
+        ...currentOverrides,
+        price: true,
+        ...(manualPrice.updatedAt ? { priceUpdatedAt: manualPrice.updatedAt } : {}),
+      };
+    }
 
     const inheritedName = existingRow ? "" : overriddenNameBySku.get(skuKey) || "";
 
@@ -809,10 +849,10 @@ export function buildMofficeSyncPlan(params: {
       updated_at: syncedAt,
       ...(keepManualPrice
         ? {
-            price_net: existingRow?.price_net ?? 0,
-            price_gross: existingRow?.price_gross ?? 0,
-            price_final_gross: existingRow?.price_final_gross ?? 0,
-            rebate_percent: existingRow?.rebate_percent ?? 0,
+            price_net: manualPrice?.priceNet ?? 0,
+            price_gross: manualPrice?.priceGross ?? 0,
+            price_final_gross: manualPrice?.priceFinalGross ?? 0,
+            rebate_percent: manualPrice?.rebatePercent ?? 0,
           }
         : {
             price_net: round2(vpPrice),
@@ -1087,7 +1127,7 @@ async function executeMofficeSync(input: {
       const batchSkus = Array.from(new Set(plannedBatch.map((row) => normalizeKey(row.sku)).filter(Boolean)));
       const { data: currentData, error: currentError } = await supabase
         .from("catalog_products")
-        .select("legacy_id,sku,ean,name_sr,raw_payload")
+        .select("legacy_id,sku,ean,name_sr,price_gross,price_final_gross,rebate_percent,raw_payload")
         .in("sku", batchSkus);
       if (currentError) throw new Error(`Fresh admin state load failed: ${currentError.message}`);
       const batch = mergeFreshAdminStateIntoMofficeRows(
