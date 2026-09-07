@@ -2334,17 +2334,24 @@ export default function AdminWebshopPage() {
     }
   };
 
-  /* Permanent bulk delete for the checkbox selection. Deleting is the one action
-     here that cannot be undone from the UI, so it asks twice and spells out the
-     count — hiding (below) stays the reversible default for everyday cleanup. */
+  /* mOffice is upstream for synced products, so physically deleting one only
+     makes the next sync recreate it. This action therefore hides the whole SKU
+     for mOffice products and permanently deletes only manual products. */
   const deleteSelection = async () => {
     if (!selectedIds.length) {
       setError("Selektuj proizvode.");
       return;
     }
     const count = selectedIds.length;
-    if (!window.confirm(`Trajno obrisati ${count} proizvod(a) iz baze? Ova akcija se ne moze vratiti.`)) return;
-    if (!window.confirm("Potvrdi jos jednom: brisanje je trajno. Ako zelis samo da ih skines sa sajta, koristi 'Sakrij selektovane'.")) return;
+    const selectedRows = items.filter((item) => selectedIds.includes(item.legacyId));
+    const mofficeCount = selectedRows.filter(isMofficeProduct).length;
+    const manualCount = Math.max(0, count - mofficeCount);
+    const actionSummary = [
+      mofficeCount ? `${mofficeCount} mOffice proizvod(a) bice sakriveno sa sajta za celu sifru` : "",
+      manualCount ? `${manualCount} rucno unetih proizvoda bice trajno obrisano` : "",
+    ].filter(Boolean).join("; ");
+    if (!window.confirm(`${actionSummary}. Nastaviti?`)) return;
+    if (manualCount && !window.confirm("Potvrdi trajno brisanje rucno unetih proizvoda. mOffice proizvodi ostaju u bazi i mogu se vratiti.")) return;
 
     setBulkSaving(true);
     setError(null);
@@ -2354,9 +2361,16 @@ export default function AdminWebshopPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) {
         const deleted = Number(json?.deleted || 0);
-        setError(deleted ? `Obrisano ${deleted}/${count}. Deo nije uspeo.` : json?.message || "Brisanje nije uspelo.");
+        const hidden = Number(json?.hidden || 0);
+        setError(
+          deleted || hidden
+            ? `Delimicno zavrseno: sakriveno ${hidden} mOffice varijanti, obrisano ${deleted} rucnih proizvoda.`
+            : json?.message || "Uklanjanje nije uspelo.",
+        );
       } else {
-        setNotice(`Obrisano ${json.deleted ?? count} proizvod(a).`);
+        const hidden = Number(json.hidden || 0);
+        const deleted = Number(json.deleted || 0);
+        setNotice(`Sakriveno ${hidden} mOffice varijanti; trajno obrisano ${deleted} rucnih proizvoda.`);
       }
       setSelected({});
       await loadProducts(pagination.page);
@@ -3414,7 +3428,7 @@ export default function AdminWebshopPage() {
               <span className="text-xs text-slate-500">Javni web shop (vazi za celu sifru, sve velicine):</span>
               <button onClick={() => void setHiddenForSelection(true)} disabled={bulkSaving || !selectedIds.length} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-rose-700 disabled:opacity-50">Sakrij selektovane</button>
               <button onClick={() => void setHiddenForSelection(false)} disabled={bulkSaving || !selectedIds.length} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 disabled:opacity-50">Vrati selektovane</button>
-              <button onClick={() => void deleteSelection()} disabled={bulkSaving || !selectedIds.length} title="Trajno brise selektovane proizvode iz baze." className="rounded-xl border border-rose-300 bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">Obrisi selektovane</button>
+              <button onClick={() => void deleteSelection()} disabled={bulkSaving || !selectedIds.length} title="mOffice proizvode trajno sakriva sa sajta; rucne proizvode brise iz baze." className="rounded-xl border border-rose-300 bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">Ukloni selektovane</button>
             </div>
           </div>
 

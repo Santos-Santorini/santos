@@ -14,6 +14,10 @@ import { normalizeShoeSpec, shoeSizeLabels, type ShoeSpec } from "@/lib/catalog/
 import type { LegacyCatalogProduct, LegacyCategory } from "@/lib/legacy/types";
 import { parseProductMediaOrder, type ProductMediaItem } from "@/lib/catalog/productMediaOrder";
 import { validateWashCareSymbolKeys, type WashCareSymbolKey } from "@/lib/catalog/washCare";
+import {
+  classifyCatalogRemovalRows,
+  type CatalogPersistenceRow,
+} from "@/lib/catalog/adminPersistence";
 
 const LEGACY_PRODUCTS_PATH = "data/legacy-products.json";
 
@@ -845,12 +849,47 @@ const deleteInLegacyFile = async (legacyId: number) => {
 const deleteInSupabase = async (legacyId: number) => {
   const supabase = getServiceSupabase();
   if (!supabase) return deleteInLegacyFile(legacyId);
+
+  const { data: found, error: loadError } = await supabase
+    .from("catalog_products")
+    .select("legacy_id,sku,ean,raw_payload")
+    .eq("legacy_id", legacyId)
+    .maybeSingle();
+  if (loadError) return { success: false, message: loadError.message };
+  if (!found) return { success: false, message: "Product not found." };
+
+  const removal = classifyCatalogRemovalRows([found as unknown as CatalogPersistenceRow]);
+  if (removal.mofficeSkus.length > 0) {
+    const sku = removal.mofficeSkus[0];
+    const { data: variants, error: variantsError } = await supabase
+      .from("catalog_products")
+      .select("legacy_id,raw_payload")
+      .eq("sku", sku);
+    if (variantsError) return { success: false, message: variantsError.message };
+
+    const now = new Date().toISOString();
+    let hidden = 0;
+    for (const variant of variants || []) {
+      const record = variant as Record<string, unknown>;
+      const current = record.raw_payload && typeof record.raw_payload === "object"
+        ? (record.raw_payload as Record<string, unknown>)
+        : {};
+      const { error } = await supabase
+        .from("catalog_products")
+        .update({ raw_payload: { ...current, hiddenFromShop: true }, updated_at: now } as never)
+        .eq("legacy_id", Number(record.legacy_id));
+      if (error) return { success: false, message: error.message, action: "hidden" as const, affected: hidden };
+      hidden += 1;
+    }
+    return { success: true, action: "hidden" as const, affected: hidden, sku };
+  }
+
   const { error } = await supabase
     .from("catalog_products")
     .delete()
     .eq("legacy_id", legacyId);
   if (error) return { success: false, message: error.message };
-  return { success: true };
+  return { success: true, action: "deleted" as const, affected: 1 };
 };
 
 export async function GET(req: NextRequest) {
@@ -1036,17 +1075,28 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Missing legacyIds." }, { status: 400 });
     }
 
-    const results: Array<{ legacyId: number; success: boolean; message?: string }> = [];
+    const results: Array<{ legacyId: number; success: boolean; message?: string; action?: "hidden" | "deleted"; affected?: number }> = [];
     for (const id of legacyIds) {
       const outcome = await deleteInSupabase(id);
-      results.push({ legacyId: id, success: outcome.success, message: outcome.message });
+      results.push({
+        legacyId: id,
+        success: outcome.success,
+        message: outcome.message,
+        action: "action" in outcome ? outcome.action : undefined,
+        affected: "affected" in outcome ? outcome.affected : undefined,
+      });
     }
-    const deleted = results.filter((row) => row.success).length;
-    if (deleted) invalidateCatalogCaches();
+    const succeeded = results.filter((row) => row.success).length;
+    const deleted = results.filter((row) => row.success && row.action === "deleted").length;
+    const hidden = results
+      .filter((row) => row.success && row.action === "hidden")
+      .reduce((sum, row) => sum + Number(row.affected || 0), 0);
+    if (succeeded) invalidateCatalogCaches();
     return NextResponse.json({
-      success: deleted === legacyIds.length,
-      partial: deleted > 0 && deleted < legacyIds.length,
+      success: succeeded === legacyIds.length,
+      partial: succeeded > 0 && succeeded < legacyIds.length,
       deleted,
+      hidden,
       total: legacyIds.length,
       results,
     });
@@ -1062,5 +1112,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: false, message: result.message || "Delete failed." }, { status: 500 });
   }
   invalidateCatalogCaches();
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    action: "action" in result ? result.action : undefined,
+    affected: "affected" in result ? result.affected : undefined,
+  });
 }
