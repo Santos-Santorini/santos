@@ -61,6 +61,65 @@ export const classifyCatalogRemovalRows = (rows: CatalogPersistenceRow[]) => {
   };
 };
 
+/* Canonical JSON: sorted keys, undefined dropped — jsonb hands keys back in its own
+   order, so a plain JSON.stringify comparison would call every row changed. */
+const canonicalJson = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item ?? null)).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as JsonRecord;
+    return `{${Object.keys(record)
+      .filter((key) => record[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value ?? null);
+};
+
+/* Bookkeeping the sync stamps on every row it touches. Leaving these out of the
+   comparison is the point: they change every run even when nothing else does. */
+const withoutSyncStamps = (payload: unknown): JsonRecord => {
+  const record = { ...asRecord(payload) };
+  const moffice = { ...asRecord(record.moffice) };
+  delete moffice.syncedAt;
+  delete moffice.syncedRunId;
+  if (Object.keys(asRecord(record.moffice)).length) record.moffice = moffice;
+  return record;
+};
+
+const MOFFICE_NUMERIC_COLUMNS = [
+  "tax_percent",
+  "stock_warehouse_1",
+  "stock_total",
+  "price_net",
+  "price_gross",
+  "price_final_gross",
+  "rebate_percent",
+] as const;
+
+/**
+ * True when writing `planned` over `current` would change nothing but the sync
+ * stamps. Every mOffice run used to rewrite all ~4k feed rows (and their TOASTed
+ * raw_payload) even though only a handful of stocks move between runs, which is
+ * what drained the Supabase Disk IO budget (Sept 2026).
+ */
+export const isMofficeRowUnchanged = (
+  planned: CatalogPersistenceRow,
+  current: CatalogPersistenceRow | undefined,
+): boolean => {
+  if (!current) return false;
+  if (String(planned.sku ?? "") !== String(current.sku ?? "")) return false;
+  if (String(planned.ean ?? "") !== String(current.ean ?? "")) return false;
+  if (String(planned.name_sr ?? "") !== String(current.name_sr ?? "")) return false;
+  if (Boolean(planned.is_active) !== Boolean(current.is_active)) return false;
+  if (Boolean(planned.is_exported) !== Boolean(current.is_exported)) return false;
+  for (const column of MOFFICE_NUMERIC_COLUMNS) {
+    if (!(column in planned)) continue;
+    if (Number(planned[column] ?? 0) !== Number(current[column] ?? 0)) return false;
+  }
+  return canonicalJson(withoutSyncStamps(planned.raw_payload)) === canonicalJson(withoutSyncStamps(current.raw_payload));
+};
+
 /**
  * Re-applies the latest admin-owned state immediately before an mOffice upsert.
  * The sync plan may be several seconds old; without this merge an admin save made

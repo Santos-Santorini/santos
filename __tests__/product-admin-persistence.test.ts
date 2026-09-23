@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyCatalogRemovalRows,
+  isMofficeRowUnchanged,
   mergeFreshAdminStateIntoMofficeRows,
 } from "@/lib/catalog/adminPersistence";
 
@@ -134,5 +135,57 @@ describe("catalog admin persistence across mOffice sync", () => {
 
     expect(result.mofficeSkus).toEqual(["129672", "131743"]);
     expect(result.manualLegacyIds).toEqual([2]);
+  });
+});
+
+describe("mOffice unchanged-row detection", () => {
+  const current = {
+    legacy_id: 10,
+    sku: "129672",
+    ean: "012967244",
+    name_sr: "Kosulja",
+    tax_percent: 20,
+    stock_warehouse_1: 2,
+    stock_total: 2,
+    is_active: true,
+    is_exported: true,
+    price_net: 4166.67,
+    price_gross: 5000,
+    price_final_gross: 5000,
+    rebate_percent: 0,
+    raw_payload: {
+      source: "moffice",
+      moffice: { stock: 2, id: 77, syncedRunId: "old-run", syncedAt: "2026-09-22T10:00:00Z" },
+      attributes: { size: ["44"] },
+    },
+  };
+  const planned = {
+    ...current,
+    updated_at: "2026-09-23T12:00:00Z",
+    raw_payload: {
+      attributes: { size: ["44"] },
+      moffice: { id: 77, stock: 2, syncedAt: "2026-09-23T12:00:00Z", syncedRunId: "new-run" },
+      source: "moffice",
+    },
+  };
+
+  it("ignores sync stamps and jsonb key order", () => {
+    expect(isMofficeRowUnchanged(planned, current)).toBe(true);
+  });
+
+  it("writes when stock moved", () => {
+    expect(isMofficeRowUnchanged({ ...planned, stock_total: 1, stock_warehouse_1: 1 }, current)).toBe(false);
+    expect(
+      isMofficeRowUnchanged(
+        { ...planned, raw_payload: { ...planned.raw_payload, moffice: { ...planned.raw_payload.moffice, stock: 1 } } },
+        current,
+      ),
+    ).toBe(false);
+  });
+
+  it("writes new rows and rows whose admin payload differs", () => {
+    expect(isMofficeRowUnchanged(planned, undefined)).toBe(false);
+    expect(isMofficeRowUnchanged({ ...planned, raw_payload: { ...planned.raw_payload, hiddenFromShop: true } }, current)).toBe(false);
+    expect(isMofficeRowUnchanged({ ...planned, price_final_gross: 4500 }, current)).toBe(false);
   });
 });

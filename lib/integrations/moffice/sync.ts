@@ -1,5 +1,6 @@
 import { invalidateCatalogCaches } from "@/lib/catalog/store";
 import {
+  isMofficeRowUnchanged,
   mergeFreshAdminStateIntoMofficeRows,
   type CatalogPersistenceRow,
 } from "@/lib/catalog/adminPersistence";
@@ -10,6 +11,12 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { getFulfillmentSettings, updateFulfillmentSettings, type Voucher } from "@/lib/storefront/fulfillment";
 
 const MOFFICE_API_URL = "https://api.moffice.co.rs/api/LagerTekstil";
+const MOFFICE_UNCHANGED_ENTITY = "moffice_unchanged";
+
+/* A stale row that is already zeroed and hidden needs no write. PostgREST `or`
+   mirrors the state check in buildPostSyncStaleIds (null counts as "not false"). */
+const NOT_YET_DEACTIVATED_FILTER =
+  "is_active.not.is.false,is_exported.not.is.false,stock_total.neq.0,stock_warehouse_1.neq.0";
 const DEBUG_SKUS = new Set(["129513", "130406", "133051"]);
 
 export type MofficeItem = {
@@ -920,7 +927,10 @@ export function buildMofficeSyncPlan(params: {
 export function buildMofficeExportRows(params: {
   rows: MofficePostSyncRow[];
   latestRunId: string;
+  /** Rows the latest run saw in the feed but skipped because nothing changed. */
+  unchangedLegacyIds?: Iterable<number>;
 }): MofficeExportRow[] {
+  const unchanged = new Set(Array.from(params.unchangedLegacyIds ?? [], Number));
   return params.rows
     .filter((row) => isLegacyLagerManagedRow(row))
     .map((row) => {
@@ -928,7 +938,8 @@ export function buildMofficeExportRows(params: {
       const moffice = getMofficePayload(payload);
       const syncedRunId = String(moffice.syncedRunId || "");
       const mofficeStockRaw = moffice.stock;
-      const hasCurrentMoffice = syncedRunId === params.latestRunId;
+      const hasCurrentMoffice =
+        syncedRunId === params.latestRunId || unchanged.has(Number(row.legacy_id));
       const mofficeStock: number | "" = hasCurrentMoffice ? Number(mofficeStockRaw ?? 0) : "";
       const mofficeId: number | "" = hasCurrentMoffice ? Number(moffice.id || 0) || "" : "";
       const siteStock = Number(row.stock_total || 0);
@@ -997,10 +1008,21 @@ export async function loadMofficeExportRows(latestRunId?: string): Promise<{
     supabase,
     "legacy_id,sku,ean,name_sr,is_active,is_exported,stock_total,stock_warehouse_1,raw_payload",
   );
+  const { data: unchangedItem, error: unchangedError } = await supabase
+    .from("integration_sync_items")
+    .select("payload")
+    .eq("run_id", runId)
+    .eq("entity_type", MOFFICE_UNCHANGED_ENTITY)
+    .maybeSingle();
+  if (unchangedError) throw new Error(`Unchanged mOffice rows load failed: ${unchangedError.message}`);
+  const unchangedPayload = (unchangedItem as { payload?: { legacyIds?: unknown } } | null)?.payload;
+  const unchangedLegacyIds = Array.isArray(unchangedPayload?.legacyIds)
+    ? (unchangedPayload.legacyIds as number[])
+    : [];
 
   return {
     latestRunId: runId,
-    rows: buildMofficeExportRows({ rows, latestRunId: runId }),
+    rows: buildMofficeExportRows({ rows, latestRunId: runId, unchangedLegacyIds }),
   };
 }
 
@@ -1121,19 +1143,29 @@ async function executeMofficeSync(input: {
     // hide flags and other admin-owned presentation fields saved meanwhile
     // cannot be replaced by the stale snapshot.
     let upserted = 0;
+    // Rows the feed confirmed this run but that needed no write. Their stored
+    // syncedRunId stays at the run that last changed them, so the export reads
+    // this list to still count them as present in the latest feed.
+    const unchangedLegacyIds: number[] = [];
     const chunkSize = 100;
     for (let i = 0; i < plan.rows.length; i += chunkSize) {
       const plannedBatch = plan.rows.slice(i, i + chunkSize) as CatalogPersistenceRow[];
       const batchSkus = Array.from(new Set(plannedBatch.map((row) => normalizeKey(row.sku)).filter(Boolean)));
       const { data: currentData, error: currentError } = await supabase
         .from("catalog_products")
-        .select("legacy_id,sku,ean,name_sr,price_gross,price_final_gross,rebate_percent,raw_payload")
+        .select(
+          "legacy_id,sku,ean,name_sr,tax_percent,stock_warehouse_1,stock_total,is_active,is_exported,price_net,price_gross,price_final_gross,rebate_percent,raw_payload",
+        )
         .in("sku", batchSkus);
       if (currentError) throw new Error(`Fresh admin state load failed: ${currentError.message}`);
-      const batch = mergeFreshAdminStateIntoMofficeRows(
-        plannedBatch,
-        (currentData || []) as unknown as CatalogPersistenceRow[],
-      );
+      const currentRows = (currentData || []) as unknown as CatalogPersistenceRow[];
+      const currentById = new Map(currentRows.map((row) => [Number(row.legacy_id), row]));
+      const batch = mergeFreshAdminStateIntoMofficeRows(plannedBatch, currentRows).filter((row) => {
+        if (!isMofficeRowUnchanged(row, currentById.get(Number(row.legacy_id)))) return true;
+        unchangedLegacyIds.push(Number(row.legacy_id));
+        return false;
+      });
+      if (!batch.length) continue;
       const table = supabase.from("catalog_products");
       const { error } = await (table.upsert as Function)(batch, {
         onConflict: "legacy_id",
@@ -1153,6 +1185,19 @@ async function executeMofficeSync(input: {
         continue;
       }
       upserted += batch.length;
+    }
+
+    if (unchangedLegacyIds.length) {
+      await addSyncRunItem(run.id, {
+        domain: "stock_inbound",
+        entityType: MOFFICE_UNCHANGED_ENTITY,
+        entityId: "unchanged",
+        status: "skipped",
+        message: `${unchangedLegacyIds.length} feed rows already up to date`,
+        payloadHash: null,
+        payload: { legacyIds: unchangedLegacyIds },
+        response: null,
+      });
     }
 
     const copiedMediaRows = await copySkuMediaToActiveMofficeRows(
@@ -1181,13 +1226,20 @@ async function executeMofficeSync(input: {
     for (let i = 0; i < initialStaleIds.length; i += chunkSize) {
       const ids = initialStaleIds.slice(i, i + chunkSize);
       const table = supabase.from("catalog_products");
-      const { error } = await (table.update as Function)({
-        stock_warehouse_1: 0,
-        stock_total: 0,
-        is_active: false,
-        is_exported: false,
-        updated_at: new Date().toISOString(),
-      }).in("legacy_id", ids);
+      // ~10k stale ids come back every run and nearly all are already hidden;
+      // rewriting them each time was half the database's write volume.
+      const { error, count } = await (table.update as Function)(
+        {
+          stock_warehouse_1: 0,
+          stock_total: 0,
+          is_active: false,
+          is_exported: false,
+          updated_at: new Date().toISOString(),
+        },
+        { count: "exact" },
+      )
+        .in("legacy_id", ids)
+        .or(NOT_YET_DEACTIVATED_FILTER);
       if (error) {
         await addSyncRunItem(run.id, {
           domain: "stock_inbound",
@@ -1201,7 +1253,7 @@ async function executeMofficeSync(input: {
         });
         continue;
       }
-      deactivated += ids.length;
+      deactivated += count ?? 0;
     }
 
     const postSyncRaw = await loadAllCatalogRows<MofficePostSyncRow>(
@@ -1249,6 +1301,7 @@ async function executeMofficeSync(input: {
     const exportRows = buildMofficeExportRows({
       rows: postSyncRaw as MofficePostSyncRow[],
       latestRunId: run.id,
+      unchangedLegacyIds,
     });
     const visibleMismatchRows = exportRows.filter(
       (row) => row.status === "VISIBLE_BUT_MISSING_FROM_MOFFICE" || row.status === "VISIBLE_WITH_WRONG_STOCK",

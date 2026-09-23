@@ -271,6 +271,36 @@ describe("mOffice sync planning", () => {
       ]),
     );
   });
+
+  it("counts rows the latest run skipped as unchanged as present in the feed", () => {
+    const rows = [
+      {
+        legacy_id: 500,
+        sku: "140001",
+        ean: "014000144",
+        name_sr: "Unchanged",
+        raw_payload: {
+          moffice: { id: 90001, size: "44", stock: 3, syncedRunId: "older-run" },
+          attributes: { size: ["44"] },
+        },
+        is_active: true,
+        is_exported: true,
+        stock_total: 3,
+        stock_warehouse_1: 3,
+        price_net: 0,
+        price_gross: 0,
+        price_final_gross: 0,
+        rebate_percent: 0,
+      },
+    ];
+
+    expect(buildMofficeExportRows({ rows, latestRunId: "latest-run" })[0].status).toBe(
+      "VISIBLE_BUT_MISSING_FROM_MOFFICE",
+    );
+    expect(
+      buildMofficeExportRows({ rows, latestRunId: "latest-run", unchangedLegacyIds: [500] })[0],
+    ).toEqual(expect.objectContaining({ status: "OK", moffice_kolicina: 3 }));
+  });
 });
 
 describe("mOffice size collapse", () => {
