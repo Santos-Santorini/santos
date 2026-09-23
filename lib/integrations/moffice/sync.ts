@@ -1311,11 +1311,11 @@ async function executeMofficeSync(input: {
     const counters: SyncCounters = {
       total: plan.counters.total,
       success: upserted + deactivated,
-      failed: plan.rows.length - upserted,
-      skipped: 0,
+      failed: plan.rows.length - upserted - unchangedLegacyIds.length,
+      skipped: unchangedLegacyIds.length,
     };
     const status = counters.failed > 0 ? "partial_success" : "success";
-    const summary = `mOffice synced ${upserted} rows, deactivated ${deactivated} stale rows (${plan.counters.matched} matched, ${plan.counters.created} new).${syncedVouchers ? ` Vouchers: ${syncedVouchers}.` : ""}`;
+    const summary = `mOffice synced ${upserted} rows (${unchangedLegacyIds.length} already up to date), deactivated ${deactivated} stale rows (${plan.counters.matched} matched, ${plan.counters.created} new).${syncedVouchers ? ` Vouchers: ${syncedVouchers}.` : ""}`;
     await completeSyncRun(run.id, {
       status,
       counters,
