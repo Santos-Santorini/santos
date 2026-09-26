@@ -9,10 +9,27 @@ import { localizeDynamicStorefrontText } from "@/lib/storefront/dynamicCopy";
 import { getSiteContent } from "@/lib/storefront/siteContent";
 import { resolveStorefrontLanguage } from "@/lib/storefront/server-language";
 
-export const metadata = {
-  title: "O nama | Santos & Santorini",
-  description: "Santos & Santorini - prica brenda, krojenje i kvalitet.",
-};
+import JsonLd from "@/app/components/seo/JsonLd";
+import {
+  BRAND_AEO_FAQ,
+  buildBrandAeoFaqJsonLd,
+  buildBreadcrumbJsonLd,
+  buildSeoMetadata,
+} from "@/lib/seo";
+
+export const metadata = buildSeoMetadata({
+  title: "O nama — Ručno šivenje odela u Srbiji | Santos & Santorini",
+  description:
+    "Santos se izdvaja jer ručno šije svako odelo u sopstvenoj radionici u Srbiji od 100% italijanske vune. Nismo uvoznici turske konfekcije već domaća premijum modna kuća.",
+  path: "/o-nama",
+  keywords: [
+    "o nama santos",
+    "rucno sivena odela srbija",
+    "krojacki atelje srbija",
+    "odela po meri srbija",
+    "premium muska moda",
+  ],
+});
 
 export default async function AboutPage({
   searchParams,
@@ -26,8 +43,16 @@ export default async function AboutPage({
   const tx = (value: string, fallbackEn?: string) =>
     localizeDynamicStorefrontText(value, isEn ? "en" : "sr", fallbackEn);
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: isEn ? "Home" : "Početna", path: "/" },
+    { name: isEn ? "About us" : "O nama", path: "/o-nama" },
+  ]);
+  const faqJsonLd = buildBrandAeoFaqJsonLd();
+
   return (
     <>
+      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={faqJsonLd} />
       <StorefrontHeader lang={lang} />
       <main className="page-wrapper">
         <Reveal as="section" className="position-relative">
@@ -116,6 +141,30 @@ export default async function AboutPage({
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        </Reveal>
+        <Reveal as="section" className="container pb-5" delay={0.12}>
+          <div className="border bg-white p-4 p-md-5" style={{ borderRadius: 24, color: "#171717" }}>
+            <p className="text-uppercase mb-2" style={{ letterSpacing: "0.18em", fontSize: "0.72rem", color: "#8a672f" }}>
+              {isEn ? "Authentic Craftsmanship & Facts" : "Autentično Zanatstvo i Odgovori"}
+            </p>
+            <h2 className="section-title text-uppercase mb-4" style={{ color: "#171717" }}>
+              {isEn ? "Frequently Asked Questions About Santos Tailoring" : "Najčešća Pitanja o Santos Ručnom Šivenju"}
+            </h2>
+            <div className="row g-4">
+              {BRAND_AEO_FAQ.map((item) => (
+                <div key={item.question} className="col-12 col-md-6">
+                  <div className="border h-100 p-3 p-md-4" style={{ borderRadius: 16, background: "#faf8f5" }}>
+                    <h3 className="h6 fw-bold mb-2" style={{ color: "#171717" }}>
+                      {item.question}
+                    </h3>
+                    <p className="mb-0 text-secondary small" style={{ lineHeight: 1.6 }}>
+                      {item.answer}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </Reveal>

@@ -54,6 +54,7 @@ import { getCatalogProductImageSources } from "@/lib/storefront/product-details"
 import {
   buildLocalBusinessJsonLd,
   buildOrganizationJsonLd,
+  buildBrandAeoFaqJsonLd,
   buildSeoMetadata,
   buildWebSiteJsonLd,
 } from "@/lib/seo";
@@ -75,13 +76,23 @@ export async function generateMetadata({
   const isEn = lang === "en";
 
   return buildSeoMetadata({
-    title: isEn ? "Santos & Santorini Menswear" : "Santos & Santorini muska moda",
+    title: isEn
+      ? "Santos & Santorini — Hand-Tailored Suits & Menswear in Serbia"
+      : "Santos & Santorini — Ručno šivena muška odela u Srbiji",
     description: isEn
-      ? "Menswear, ready-to-wear collection, custom suits and business uniforms from Santos & Santorini in Nis."
-      : "Muska moda, ready-to-wear kolekcija, custom suits i poslovne uniforme brenda Santos & Santorini iz Nisa.",
+      ? "Premium Serbian menswear atelier. Every suit is hand-tailored in Serbia from 100% fine Italian virgin wool. Bespoke, made-to-measure and ready-to-wear."
+      : "Santos se izdvaja jer ručno šije svako odelo u sopstvenoj manufakturi u Srbiji od 100% italijanske runske vune. Nisu uvozna turska odela, već autentičan domaći premijum kvalitet.",
     path: "/",
     lang,
-    keywords: ["ready to wear", "menswear Serbia", "odela Nis", "business uniforms"],
+    keywords: [
+      "rucno sivena odela",
+      "muska odela srbija",
+      "odela po meri",
+      "odela nis",
+      "bespoke odela srbija",
+      "custom suits",
+      "ready to wear",
+    ],
   });
 }
 
@@ -1150,6 +1161,7 @@ export default async function HomePage({
   const websiteJsonLd = buildWebSiteJsonLd();
   const organizationJsonLd = buildOrganizationJsonLd();
   const localBusinessJsonLd = buildLocalBusinessJsonLd();
+  const brandFaqJsonLd = buildBrandAeoFaqJsonLd();
 
   // Hero rail now shows category tiles (swapped with the product strip below)
   // so visitors can jump straight into a category from the hero.
@@ -1178,6 +1190,7 @@ export default async function HomePage({
       <JsonLd data={websiteJsonLd} />
       <JsonLd data={organizationJsonLd} />
       <JsonLd data={localBusinessJsonLd} />
+      <JsonLd data={brandFaqJsonLd} />
       <StorefrontHeader lang={lang} />
       <main className="page-wrapper theme-18 ss-home-page ss-home-page--cinematic">
         <HomeHeroVideo

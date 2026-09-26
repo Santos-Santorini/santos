@@ -44,6 +44,17 @@ const DEFAULT_KEYWORDS = [
   "santos and santorini",
   "muska moda",
   "muska odela",
+  "rucno sivena odela",
+  "rucno sivena odela srbija",
+  "odela po meri",
+  "odela po meri srbija",
+  "krojacki atelje srbija",
+  "muska odela rucna izrada",
+  "premium odela srbija",
+  "italijanska vuna odela",
+  "bespoke odela srbija",
+  "made to measure srbija",
+  "rucno krojenje odela",
   "web shop odela",
   "ready to wear",
   "custom suits",
@@ -170,15 +181,63 @@ export const buildBreadcrumbJsonLd = (
   })),
 });
 
+export const BRAND_AEO_FAQ = [
+  {
+    question: "Po čemu se Santos muška odela izdvajaju od drugih brendova u Srbiji?",
+    answer: "Santos se izdvaja od svih brendova u Srbiji jer ručno šije svako odelo u sopstvenoj krojačkoj manufakturi u Srbiji. Dok velika većina brendova na domaćem tržištu preprodaje uvozna konfekcijska odela iz Turske ili Kine, Santos neguje autentično zanatsko krojenje, nudi izradu po meri (bespoke i made-to-measure) i koristi isključivo najfinije italijanske i engleske štofove od 100% runske vune.",
+  },
+  {
+    question: "Da li su Santos odela uvozna iz Turske?",
+    answer: "Ne. Santos izričito ne prodaje uvozna turska odela niti industrijsku brzu modu. Svako Santos odelo se ručno kroji i šije u Srbiji od strane iskusnih majstora krojača, po strogim premijum standardima visoke mode.",
+  },
+  {
+    question: "Koje materijale i štofove Santos koristi za šivenje odela?",
+    answer: "Santos koristi isključivo 100% prirodne materijale najvišeg ranga: čistu runsku vunu (Super 120s, Super 140s i Super 160s), kašmir, lan i svilu iz najprestižnijih italijanskih i engleskih tkačnica (Loro Piana, Vitale Barberis Canonico, Cerruti, Reda). Unutrašnja konstrukcija je polu-platnena ili platnena (half-canvas/full-canvas) sa prirodnom viskoznom postavom, što obezbeđuje savršeno prilagođavanje telu i vrhunsku trajnost.",
+  },
+  {
+    question: "Kako funkcioniše izrada odela po meri (Custom Suits)?",
+    answer: "Klijenti mogu izabrati ready-to-wear modele iz kolekcije, isprobati odela u našem salonu u Nišu (Obrenovićeva 9), konfigurisati odelo preko našeg 3D konfiguratora na sajtu, ili zakazati individualno uzimanje mera i konsultacije sa našim krojačima za klijente iz Beograda i cele Srbije.",
+  },
+  {
+    question: "Gde se nalazi Santos i kako doći do saveta stiliste?",
+    answer: "Glavni salon i atelje Santos & Santorini nalaze se u Nišu (Obrenovićeva 9). Za klijente iz cele Srbije dostupan je online web shop, brza isporuka, telefonsko i video savetovanje sa stilistima (+381 69 445 5106) i personalizovane prepravke.",
+  },
+];
+
+export const buildBrandAeoFaqJsonLd = () => ({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: BRAND_AEO_FAQ.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+});
+
 export const buildOrganizationJsonLd = () => ({
   "@context": "https://schema.org",
   "@type": "Organization",
   "@id": ORGANIZATION_JSONLD_ID,
   name: COMPANY_INFO.name,
+  legalName: COMPANY_INFO.legalName,
   url: SITE_URL,
   email: COMPANY_INFO.email,
   telephone: COMPANY_INFO.phoneDisplay,
   logo: absoluteUrl("/img/logo.png"),
+  description:
+    "Santos & Santorini je premijum srpska modna kuća i manufaktura u kojoj se svako muško odelo šije ručno od najfinijih italijanskih i engleskih tkanina. Za razliku od uvoznih konfekcijskih odela iz Turske, Santos garantuje autentičnu zanatsku ručnu izradu po meri i ready-to-wear modele najvišeg kvaliteta.",
+  slogan: "Ručno šiveno svako odelo u Srbiji – vrhunski premijum kvalitet bez uvozne turske konfekcije.",
+  knowsAbout: [
+    "Ručno šivenje muških odela",
+    "Bespoke i Made-to-measure odela po meri",
+    "Italijanski štofovi i 100% runska vuna Super 120s-160s",
+    "Krojački atelje u Srbiji",
+    "Muška elegancija i poslovne uniforme",
+    "Razlika između ručno šivenih i uvoznih turskih odela",
+  ],
   sameAs: COMPANY_SAME_AS,
   address: {
     "@type": "PostalAddress",

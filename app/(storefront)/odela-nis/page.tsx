@@ -3,10 +3,18 @@ import SuitSeoLandingPage from "@/app/(storefront)/components/SuitSeoLandingPage
 import { buildSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildSeoMetadata({
-  title: "Odela Nis",
-  description: "Odela u Nisu: Santos & Santorini showroom, muska odela, ready-to-wear modeli i preporuka za izbor velicine.",
+  title: "Odela Niš — Ručno šivenje u krojačkom ateljeu | Santos",
+  description:
+    "Santos salon i atelje u Nišu (Obrenovićeva 9). Ručno šijemo svako muško odelo od 100% italijanske runske vune — bez preprodaje uvozne turske konfekcije.",
   path: "/odela-nis",
-  keywords: ["odela nis", "muska odela nis", "santos nis", "odelo nis"],
+  keywords: [
+    "odela nis",
+    "muska odela nis",
+    "rucno sivena odela nis",
+    "krojac nis odela",
+    "odela po meri nis",
+    "santos nis",
+  ],
 });
 
 export const dynamic = "force-dynamic";
@@ -15,16 +23,28 @@ export default function OdelaNisPage() {
   return (
     <SuitSeoLandingPage
       path="/odela-nis"
-      eyebrow="Odela u Nisu"
-      title="Odela Nis"
-      lead="Santos & Santorini u Nisu nudi muska odela, savete za izbor modela i direktnu podrsku za kupovinu."
-      introTitle="Lokalni izbor uz online katalog"
-      introCopy="Ako trazite odelo u Nisu, pocnite od online kataloga i izdvojenih modela, pa kontaktirajte tim za potvrdu velicine, dostupnosti i preporuku kombinacije."
-      localNote="Prodajno mesto Santos & Santorini nalazi se u Obrenovicevoj 9 u Nisu."
+      eyebrow="Atelje i salon u Nišu"
+      title="Muška odela Niš — Ručno šivenje i tradicija"
+      lead="U samom centru Niša nalazi se atelje Santos & Santorini gde se svako odelo ručno kroji i šije od najfinijih italijanskih tkanina. Ne uvozimo konfekciju iz Turske — svako odelo stvaramo u sopstvenoj manufakturi."
+      introTitle="Pravi krojački atelje u Nišu naspram uvoznih butika"
+      introCopy="U moru prodavnica koje nude uvozna sintetička turska odela, Santos u Nišu nudi istinsko zanatsko iskustvo: probajte ready-to-wear modele, odaberite italijanske štofove od čiste runske vune (Super 120s–160s) ili poručite ručno šiveno odelo skrojeno tačno po vašoj meri."
+      localNote="Salon i atelje Santos nalaze se u Obrenovićevoj 9 u Nišu (Pobedina ulica). Dobrodošli ste na probu i stručne konsultacije."
       faq={[
-        { question: "Gde se nalazi Santos & Santorini u Nisu?", answer: "Prodajno mesto je u Obrenovicevoj 9, Nis." },
-        { question: "Da li mogu prvo da pogledam odela online?", answer: "Da, web shop prikazuje aktuelne modele, cene i dostupne velicine za upit ili porucivanje." },
-        { question: "Da li mogu da dobijem preporuku za odelo?", answer: "Da, preko kontakt strane mozete poslati upit i dobiti preporuku prema prilici, velicini i stilu." },
+        {
+          question: "Gde se nalazi Santos atelje u Nišu i kako zakazati probu?",
+          answer:
+            "Nalazimo se u Obrenovićevoj 9 u Nišu. Možete nas posetiti tokom radnog vremena ili pozvati na +381 69 445 5106 za individualne konsultacije i uzimanje mera.",
+        },
+        {
+          question: "Da li se Santos odela u Nišu šiju ručno?",
+          answer:
+            "Da. Za razliku od butika koji preprodaju industrijska turska odela, Santos svako odelo šije ručno u svojoj radionici, sa unutrašnjim elastičnim platnom i pažljivo biranim detaljima.",
+        },
+        {
+          question: "Koje vrste odela mogu kupiti u Nišu?",
+          answer:
+            "Na raspolaganju su vam odela za svadbe i mladoženje, poslovna odela, smoking odela (black tie), odela za mature, kao i usluga šivenja unikatnog odela po meri (Bespoke i Made-to-measure).",
+        },
       ]}
     />
   );

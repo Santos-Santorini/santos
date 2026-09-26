@@ -22,6 +22,16 @@ export default function robots(): MetadataRoute.Robots {
         disallow: disallowAdmin,
       },
       {
+        userAgent: "OAI-SearchBot",
+        allow: "/",
+        disallow: disallowAdmin,
+      },
+      {
+        userAgent: "PerplexityBot",
+        allow: "/",
+        disallow: disallowAdmin,
+      },
+      {
         userAgent: "Google-Extended",
         allow: "/",
         disallow: disallowAdmin,
@@ -36,8 +46,18 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         disallow: disallowAdmin,
       },
+      {
+        userAgent: "Applebot-Extended",
+        allow: "/",
+        disallow: disallowAdmin,
+      },
+      {
+        userAgent: "cohere-ai",
+        allow: "/",
+        disallow: disallowAdmin,
+      },
     ],
-    sitemap: absoluteUrl("/sitemap.xml"),
+    sitemap: [absoluteUrl("/sitemap.xml"), absoluteUrl("/llms.txt")],
     host: SITE_URL,
   };
 }
