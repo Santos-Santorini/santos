@@ -71,7 +71,9 @@ async function listPostsUncached({
 }: ListPostsInput) {
   const normalizedQuery = query.trim().toLowerCase();
 
-  const supabase = getAnonSupabase() || getServiceSupabase();
+  const supabase = onlyPublished
+    ? getAnonSupabase() || getServiceSupabase()
+    : getServiceSupabase();
   if (supabase) {
     let builder = supabase.from("content_posts").select("*");
     if (type !== "all") builder = builder.eq("post_type", type);
@@ -138,11 +140,12 @@ async function getPostBySlugUncached(slug: string) {
       .from("content_posts")
       .select("*")
       .eq("slug", safe)
+      .eq("is_published", true)
       .maybeSingle();
     if (!error && data) return mapRowToPost(data);
   }
   const local = await readJsonFile<BlogPost[]>(POSTS_FILE, []);
-  return local.find((item) => item.slug === safe) || null;
+  return local.find((item) => item.slug === safe && item.isPublished) || null;
 }
 
 const getPostBySlugCached = unstable_cache(

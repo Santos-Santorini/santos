@@ -1,7 +1,7 @@
 -- Webshop performance index package
 -- Run in Supabase SQL editor (safe to re-run).
 
-create extension if not exists pg_trgm;
+create extension if not exists pg_trgm with schema extensions;
 
 create index if not exists idx_catalog_products_active_exported
   on public.catalog_products (is_active, is_exported);
@@ -25,7 +25,7 @@ create index if not exists idx_catalog_products_search_trgm
       coalesce(name_sr, '') || ' ' ||
       coalesce(name_en, '') || ' ' ||
       coalesce(brand, '')
-    ) gin_trgm_ops
+    ) extensions.gin_trgm_ops
   );
 
 create index if not exists idx_catalog_products_raw_payload_gin
