@@ -92,6 +92,8 @@ export type MapperOptions = {
    * confirms they accept a merchant pseudo-EAN — otherwise listings are rejected.
    */
   allowInternalEan?: boolean;
+  /** Catalog submissions must contain real listing content. */
+  requireListingContent?: boolean;
 };
 
 export type MappedProduct = {
@@ -164,14 +166,30 @@ export function mapCatalogItemToAnanas(
   const attributes: Record<string, string[]> = {};
   const sizes = stringSizes(item.attributes);
   if (sizes.length) attributes["Veličina"] = sizes;
+  for (const [source, target] of [["material", "Materijal"], ["color", "Boja"]]) {
+    const raw = item.attributes?.[source] ?? item.attributes?.[target];
+    const values = (Array.isArray(raw) ? raw : [raw]).map(value => String(value ?? "").trim()).filter(Boolean);
+    if (values.length) attributes[target] = values;
+  }
+  const description = String(item.description || item.specification || "").trim();
+  if (options.requireListingContent) {
+    if (!description || description === String(item.name || "").trim()) return reject("missing product description");
+    if (!attributes["Materijal"]?.length) return reject("missing material");
+  }
 
   // mOffice sku is a style code shared across every size in that style — make
   // it unique per variant (see file header) while keeping it traceable.
   const ananasSku = `${sku}_${item.legacyId}`;
+  const sourceGroup = String((item.rawPayload?.moffice as Record<string, unknown> | undefined)?.category || item.categories?.[0]?.name || "");
+  const typeLabel = sourceGroup.replace(/^M\.\s*/i, "").trim();
+  const name = String(item.name || sku).trim().replace(/\s+/g, " ");
+  const typeWord = typeLabel.split(/\s+/).at(-1) || "";
+  const listingName = typeWord && typeLabel !== "Ostalo" && !name.toLocaleLowerCase("sr").includes(typeWord.toLocaleLowerCase("sr"))
+    ? `${typeLabel} ${name}` : name;
 
   const payload: AnanasImportProduct = {
-    name: item.name || sku,
-    description: item.description || item.specification || item.name || sku,
+    name: listingName,
+    description,
     coverImage,
     ean,
     brand: item.brand || DEFAULT_BRAND,
@@ -179,7 +197,7 @@ export function mapCatalogItemToAnanas(
     // Resolved in a second pass (see resolveParentEans) once all variants are known.
     parentEan: "",
     packageWeightValue: resolvePackageWeightKg(item),
-    packageWeightUnit: "kg",
+    packageWeightUnit: "KG",
     basePrice,
     vat: toNumber(item.taxPercent || 20, 2),
     stockLevel: Math.max(0, Math.floor(item.stockWarehouse1 || 0)),

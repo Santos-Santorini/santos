@@ -147,7 +147,7 @@ describe("buildVariantPriceIndexBySku / applyVariantPriceIndex", () => {
   it("carries the variant spread onto a pinned product", () => {
     const index = buildVariantPriceIndexBySku([catalogItem("SKU-1", 29_900, 19_900, 29_900)]);
     const pinned = applyVariantPriceIndex(
-      { sku: "SKU-1", legacyId: 55, priceFinalGross: 19_900, priceGross: 19_900, rawPayload: {} },
+      { sku: "SKU-1", legacyId: 55, priceFinalGross: 19_900, priceGross: 19_900, rawPayload: {} as Record<string, unknown> },
       index,
     );
 

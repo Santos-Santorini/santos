@@ -253,6 +253,12 @@ const catalogItem = (overrides: Partial<CatalogProductView> = {}): CatalogProduc
   }) as CatalogProductView;
 
 describe("catalog mapper", () => {
+  it("sends material and rejects missing listing content", () => {
+    const result = mapCatalogItemToAnanas(catalogItem({ attributes: { size: ["50"], material: ["100% Vuna"] } }), { requireListingContent: true });
+    expect("product" in result && result.product.payload.attributes["Materijal"]).toEqual(["100% Vuna"]);
+    expect(mapCatalogItemToAnanas(catalogItem(), { requireListingContent: true })).toHaveProperty("rejection.reason", "missing material");
+    expect(mapCatalogItemToAnanas(catalogItem({ description: null, specification: null }), { requireListingContent: true })).toHaveProperty("rejection.reason", "missing product description");
+  });
   it("makes legacy image paths absolute", () => {
     expect(toAbsoluteImageUrl("/fajlovi/product/074_crop.jpg")).toBe(
       "https://assets.santos.rs/fajlovi/product/074_crop.jpg",
@@ -274,7 +280,7 @@ describe("catalog mapper", () => {
       basePrice: 24_990,
       vat: 20,
       stockLevel: 3,
-      packageWeightUnit: "kg",
+      packageWeightUnit: "KG",
       category: "Odela",
     });
     expect(result.product.payload.attributes["Veličina"]).toEqual(["50", "52"]);

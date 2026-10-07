@@ -30,6 +30,8 @@ export type MofficeItem = {
   ARTIKAL_ZALIHE?: number;
   ARTIKAL_GRUPA?: string;
   ARTIKAL_VELICINA?: string;
+  ARTIKAL_OPIS?: string;
+  ARTIKAL_SASTAV?: string;
   /* mOffice may extend the feed without telling us; extra keys are read
      dynamically by the pricing helpers below. */
   [key: string]: unknown;
@@ -79,6 +81,8 @@ const KNOWN_FEED_KEYS = new Set<string>([
   "ARTIKAL_PDV_STOPA",
   "ARTIKAL_VP_CENA",
   "ARTIKAL_MP_CENA",
+  "ARTIKAL_OPIS",
+  "ARTIKAL_SASTAV",
   ...DISCOUNT_PERCENT_KEYS,
   ...DISCOUNTED_PRICE_KEYS,
 ]);
@@ -782,6 +786,8 @@ export function buildMofficeSyncPlan(params: {
     const existingPayload = getRawPayload(existingRow?.raw_payload);
     const attributes = getPayloadAttributes(existingPayload);
     if (size) attributes.size = [size];
+    const material = normalizeKey(item.ARTIKAL_SASTAV);
+    if (material) attributes.material = [material];
     // Feed rows occasionally carry unparsable prices ("", "-", localized decimals).
     // Number() turns those into NaN, which serializes to null and trips the
     // NOT NULL constraint on catalog_products.price_net — taking the whole
@@ -797,6 +803,7 @@ export function buildMofficeSyncPlan(params: {
     const payload: Record<string, unknown> = {
       ...existingPayload,
       attributes,
+      mofficeContent: { description: normalizeKey(item.ARTIKAL_OPIS), material },
       moffice: {
         id: mofficeId,
         sku,
@@ -805,6 +812,8 @@ export function buildMofficeSyncPlan(params: {
         size,
         stock,
         priceGross: mpPrice,
+        description: normalizeKey(item.ARTIKAL_OPIS),
+        material,
         priceNet: vpPrice,
         priceFinalGross: pricing.priceFinalGross,
         rebatePercent: pricing.rebatePercent,

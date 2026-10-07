@@ -152,7 +152,7 @@ async function phaseCatalog({ context, items, stateByLegacyId }: PhaseInput): Pr
   const counters = emptyCounters();
   const allowInternalEan = allowInternalEanFromEnv();
   const visible = items.filter((item) => !item.hiddenFromShop);
-  const { products, rejected } = mapCatalogToAnanas(visible, { allowInternalEan });
+  const { products, rejected } = mapCatalogToAnanas(visible, { allowInternalEan, requireListingContent: true });
 
   counters.total = visible.length;
   counters.skipped += rejected.length;
@@ -275,7 +275,8 @@ async function phaseCatalog({ context, items, stateByLegacyId }: PhaseInput): Pr
       catalogCandidates: visible.length,
       catalogRejected: rejected.length,
       catalogRejectedSample: summarizeRejections(rejected),
-      catalogSent: pending.length,
+      catalogSent: counters.success,
+      catalogAttempted: pending.length,
       catalogBatches: batches.length,
     },
   };

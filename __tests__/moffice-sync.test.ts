@@ -12,6 +12,10 @@ import {
 import { extractModelCode } from "@/lib/integrations/moffice/modelCode";
 
 const row = (overrides: Partial<MofficeExistingRow> = {}): MofficeExistingRow => ({
+  price_net: 0,
+  price_gross: 0,
+  price_final_gross: 0,
+  rebate_percent: 0,
   legacy_id: 1,
   sku: "133051",
   ean: "013305145",
@@ -40,6 +44,12 @@ const item = (overrides: Partial<MofficeItem> = {}): MofficeItem => ({
 });
 
 describe("mOffice sync planning", () => {
+  it("imports ERP descriptions and composition without treating them as unknown fields", () => {
+    const feed = item({ ARTIKAL_OPIS: "Opis iz ERP-a", ARTIKAL_SASTAV: "100% Pamuk" });
+    const plan = buildMofficeSyncPlan({ runId: "content-test", items: [feed], existing: [row({ ean: feed.ARTIKAL_BARKOD! })] });
+    expect(plan.rows[0].raw_payload).toMatchObject({ attributes: { material: ["100% Pamuk"] }, moffice: { description: "Opis iz ERP-a", material: "100% Pamuk" } });
+    expect(collectUnknownFeedFields([feed])).toEqual([]);
+  });
   it("marks a legacy lager SKU absent from the latest mOffice feed as stale", () => {
     const plan = buildMofficeSyncPlan({
       runId: "run-1",
@@ -166,6 +176,7 @@ describe("mOffice sync planning", () => {
 
   it("post-sync cleanup still sees stale rows after the first Supabase page", () => {
     const rows: MofficePostSyncRow[] = Array.from({ length: 1001 }, (_, index) => ({
+      ...row(),
       legacy_id: index + 1,
       sku: String(100000 + index),
       ean: `0${100000 + index}`,
@@ -177,6 +188,7 @@ describe("mOffice sync planning", () => {
       stock_warehouse_1: 1,
     }));
     rows.push({
+      ...row(),
       legacy_id: 12951354,
       sku: "129513",
       ean: "012951354",
@@ -226,6 +238,7 @@ describe("mOffice sync planning", () => {
   it("exports visible and hidden mOffice mismatches with clear statuses", () => {
     const rows: MofficePostSyncRow[] = [
       {
+        ...row(),
         legacy_id: 12951354,
         sku: "129513",
         ean: "012951354",
@@ -237,6 +250,7 @@ describe("mOffice sync planning", () => {
         stock_warehouse_1: 2,
       },
       {
+        ...row(),
         legacy_id: 13040699,
         sku: "130406",
         ean: "013040699",
@@ -248,6 +262,7 @@ describe("mOffice sync planning", () => {
         stock_warehouse_1: 0,
       },
       {
+        ...row(),
         legacy_id: 13305144,
         sku: "133051",
         ean: "013305144",

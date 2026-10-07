@@ -505,6 +505,7 @@ const compactRawPayload = (
   if (source.shoe && typeof source.shoe === "object") compact.shoe = source.shoe;
   if (source.source) compact.source = source.source;
   if (source.moffice && typeof source.moffice === "object") compact.moffice = source.moffice;
+  if (source.mofficeContent && typeof source.mofficeContent === "object") compact.mofficeContent = source.mofficeContent;
   if (source.syncSource) compact.syncSource = source.syncSource;
   if (source.imageFallback && typeof source.imageFallback === "object") {
     compact.imageFallback = source.imageFallback;
@@ -563,7 +564,7 @@ const normalizeCatalogRow = (
     name: String(row.name_sr || row.sku || legacyId),
     nameOverride: rawPayloadSource.nameOverride === true,
     nameEn: row.name_en ? String(row.name_en) : null,
-    description: row.description_sr ? String(row.description_sr) : null,
+    description: row.description_sr ? String(row.description_sr) : String((rawPayload?.mofficeContent as Record<string, unknown> | undefined)?.description || (rawPayload?.moffice as Record<string, unknown> | undefined)?.description || "") || null,
     descriptionEn: row.description_en ? String(row.description_en) : null,
     specification: row.specification_sr ? String(row.specification_sr) : null,
     specificationEn: row.specification_en ? String(row.specification_en) : null,

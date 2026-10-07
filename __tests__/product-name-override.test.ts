@@ -54,7 +54,7 @@ describe("admin-typed product names", () => {
     const formatted = getCatalogProductDisplayName({
       name: "316 BLUE WHITE EVA                 M.Cipele",
       sku: "133051",
-      categories: [{ id: 1, name: "Obuca", path: ["Obuca"] }],
+      categories: [{ name: "Obuca", path: ["Obuca"] }],
     });
     expect(formatted).not.toBe("316 BLUE WHITE EVA                 M.Cipele");
   });
