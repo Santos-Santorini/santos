@@ -546,6 +546,11 @@ export const getProductMaterial = (
     return specification;
   }
 
+  const material = product.attributes?.material;
+  const composition = (Array.isArray(material) ? material : [material])
+    .map(value => String(value ?? "").trim()).filter(Boolean).join(", ");
+  if (composition) return composition;
+
   return lang === "en"
     ? "Material details are confirmed on the original product declaration."
     : "Detalji materijala potvrdjeni su na originalnoj deklaraciji proizvoda.";

@@ -566,7 +566,8 @@ const normalizeCatalogRow = (
     nameEn: row.name_en ? String(row.name_en) : null,
     description: row.description_sr ? String(row.description_sr) : String((rawPayload?.mofficeContent as Record<string, unknown> | undefined)?.description || (rawPayload?.moffice as Record<string, unknown> | undefined)?.description || "") || null,
     descriptionEn: row.description_en ? String(row.description_en) : null,
-    specification: row.specification_sr ? String(row.specification_sr) : null,
+    specification: row.specification_sr ? String(row.specification_sr) :
+      String((rawPayload?.mofficeContent as Record<string, unknown> | undefined)?.material || "").trim() || null,
     specificationEn: row.specification_en ? String(row.specification_en) : null,
     priceGross: Number(row.price_gross || 0),
     priceFinalGross: Number(row.price_final_gross || 0),

@@ -16,6 +16,7 @@ import {
   getLocalizedCatalogProductName,
   getProductWashCare,
   getProductSizeOptions,
+  getProductMaterial,
 } from "@/lib/storefront/product-details";
 import type { CatalogProductView } from "@/lib/catalog/store";
 
@@ -64,6 +65,17 @@ const makeProduct = (
 // ---------------------------------------------------------------------------
 // getCatalogProductImageSources
 // ---------------------------------------------------------------------------
+
+describe("MOffice composition display", () => {
+  it("shows imported material when the old specification is empty", () => {
+    expect(getProductMaterial(makeProduct({ attributes: { material: ["45% Poliester 28% Pamuk 25% Viskoza 2% Elastan"] } }), "sr"))
+      .toBe("45% Poliester 28% Pamuk 25% Viskoza 2% Elastan");
+  });
+  it("preserves a manually entered specification", () => {
+    expect(getProductMaterial(makeProduct({ specification: "100% Vuna", attributes: { material: ["100% Pamuk"] } }), "sr"))
+      .toBe("100% Vuna");
+  });
+});
 
 describe("getCatalogProductImageSources", () => {
   it("returns fallback images when product and variants have no images", () => {
