@@ -18,7 +18,7 @@ import { buildUploadedFontStoragePath, validateWoff2Upload } from "@/lib/storefr
 export const maxDuration = 60;
 
 const authorize = async (req: NextRequest) => {
-  return hasAdminToken(req)
+  return await hasAdminToken(req, "content.manage")
     ? null
     : NextResponse.json({ success: false, message: "Nemate dozvolu za upravljanje fontovima." }, { status: 401 });
 };

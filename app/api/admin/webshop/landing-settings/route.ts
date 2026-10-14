@@ -153,7 +153,7 @@ const parseContactPoints = (value: unknown): LandingContactPoint[] => {
 };
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "webshop.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const settings = await getLandingSettings();
@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "webshop.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

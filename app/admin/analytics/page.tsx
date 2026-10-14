@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/security/adminPage";
 import Link from "next/link";
 import { listContactMessages } from "@/lib/contact/messages";
 import { listNewsletterSubscribers } from "@/lib/newsletter/store";
@@ -260,6 +261,7 @@ export default async function AdminAnalyticsPage({
 }: {
   searchParams: SearchParams;
 }) {
+  await requireAdminPage("webshop.manage");
   const params = await searchParams;
   const days = parseAnalyticsRange(params.range);
   const analyticsOverview = getVercelAnalyticsOverview();

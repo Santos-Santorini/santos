@@ -14,7 +14,7 @@ const normalizeStatus = (value: unknown): ContactMessageStatus | null => {
 };
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "customer.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const messages = await listContactMessages();
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "customer.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const payload = await req.json().catch(() => null);
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "customer.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const payload = await req.json().catch(() => null);

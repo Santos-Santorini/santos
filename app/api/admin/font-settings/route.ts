@@ -4,7 +4,7 @@ import { getFontSettings, updateFontSettings } from "@/lib/storefront/fontSettin
 import { getFontLibrary } from "@/lib/storefront/fontLibrary";
 
 const requireAdmin = async (req: NextRequest) => {
-  if (hasAdminToken(req)) return null;
+  if (await hasAdminToken(req, "content.manage")) return null;
   return NextResponse.json({ success: false, message: "Nemate dozvolu za upravljanje fontovima." }, { status: 401 });
 };
 

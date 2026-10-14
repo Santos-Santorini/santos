@@ -17,7 +17,7 @@ const parsePath = (value: unknown) =>
         .filter(Boolean);
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -80,7 +80,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

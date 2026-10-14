@@ -21,6 +21,7 @@ export type AdminRoleDefinition = {
 };
 
 export type AdminViewer = {
+  authVersion?: string;
   id: string;
   username: string;
   displayName: string;

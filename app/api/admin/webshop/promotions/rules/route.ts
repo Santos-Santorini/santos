@@ -72,7 +72,7 @@ const parseCreatePayload = (raw: unknown): PromotionRuleInput | ParseFailure => 
 };
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "marketing.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "marketing.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

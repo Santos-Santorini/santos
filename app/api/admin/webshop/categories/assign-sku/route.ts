@@ -18,7 +18,7 @@ import { invalidateCatalogCaches, normalizeCatalogCategoryGroupKey } from "@/lib
  *    categories[], the same field the category editor writes.
  */
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

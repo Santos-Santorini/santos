@@ -1,3 +1,4 @@
+import { hasAdminToken } from "@/lib/auth/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getServiceSupabase } from "@/lib/supabase/server";
@@ -16,12 +17,21 @@ const ensureBucket = async (supabase: ReturnType<typeof getServiceSupabase>) => 
 };
 
 export async function POST(req: NextRequest) {
+  if (!(await hasAdminToken(req, "preview.manage"))) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  }
   const supabase = getServiceSupabase();
   if (!supabase) {
     return NextResponse.json({ success: false, message: "Supabase service key missing" }, { status: 503 });
   }
 
   const form = await req.formData();
+  for (const value of form.values()) {
+    if (typeof value !== "string" && value.size > 0 &&
+      (value.size > 10 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(value.type))) {
+      return NextResponse.json({ success: false, message: "Dozvoljene su PNG, JPEG i WebP slike do 10 MB." }, { status: 400 });
+    }
+  }
   const id = String(form.get("id") || "").trim() || randomUUID();
   const name = String(form.get("name") || "").trim();
   const baseOverride = String(form.get("base") || "").trim();
@@ -105,6 +115,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await hasAdminToken(req, "preview.manage"))) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  }
   const supabase = getServiceSupabase();
   if (!supabase) {
     return NextResponse.json({ success: false, message: "Supabase service key missing" }, { status: 503 });

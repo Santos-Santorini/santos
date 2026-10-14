@@ -63,27 +63,37 @@ const ensureBucket = async (bucket: string) => {
  * a unique query string and `no-store` always reaches the origin; `download()`
  * stays as the fallback for the case where signing fails.
  */
-async function readFromSupabase<T>(bucket: string, storagePath: string): Promise<T | null> {
+async function readFromSupabase<T>(bucket: string, storagePath: string, strict = false): Promise<T | null> {
   const supabase = getServiceSupabase();
   if (!supabase) return null;
 
   try {
-    const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(storagePath, 60);
+    const { data: signed, error: signingError } = await supabase.storage.from(bucket).createSignedUrl(storagePath, 60);
+    if (strict && !signed?.signedUrl) {
+      if (String(signingError?.statusCode) === "404" || signingError?.message === "Object not found") return null;
+      throw new Error("Persistent storage signing failed");
+    }
     if (signed?.signedUrl) {
       const separator = signed.signedUrl.includes("?") ? "&" : "?";
       const res = await fetch(`${signed.signedUrl}${separator}ts=${Date.now()}`, { cache: "no-store" });
       if (res.ok) return (await res.json()) as T;
       if (res.status === 404) return null;
+      if (strict) throw new Error("Persistent storage read failed");
     }
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     // Fall through to download().
   }
 
   try {
     const { data, error } = await supabase.storage.from(bucket).download(storagePath);
-    if (error || !data) return null;
+    if (error || !data) {
+      if (strict && String(error?.statusCode) !== "404" && error?.message !== "Object not found") throw new Error("Persistent storage unavailable");
+      return null;
+    }
     return JSON.parse(await data.text()) as T;
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return null;
   }
 }
@@ -112,12 +122,13 @@ async function writeToSupabase(bucket: string, storagePath: string, data: unknow
 export async function readPersistentJsonFile<T>(
   relativePath: string,
   fallback: T,
-  options?: { storagePath?: string; bucket?: string },
+  options?: { storagePath?: string; bucket?: string; strict?: boolean },
 ): Promise<T> {
   const bucket = options?.bucket || PERSISTENT_JSON_BUCKET;
   const storagePath = normalizeStoragePath(options?.storagePath || relativePath);
-  const stored = await readFromSupabase<T>(bucket, storagePath);
+  const stored = await readFromSupabase<T>(bucket, storagePath, options?.strict);
   if (stored != null) return stored;
+  if (options?.strict && getServiceSupabase()) return fallback;
 
   // Supabase unavailable or file not found — read from local file only.
   // Do NOT write back to Supabase here: a transient read failure or a
@@ -129,11 +140,12 @@ export async function readPersistentJsonFile<T>(
 export async function writePersistentJsonFile(
   relativePath: string,
   data: unknown,
-  options?: { storagePath?: string; bucket?: string },
+  options?: { storagePath?: string; bucket?: string; strict?: boolean },
 ) {
   const bucket = options?.bucket || PERSISTENT_JSON_BUCKET;
   const storagePath = normalizeStoragePath(options?.storagePath || relativePath);
   const wroteToSupabase = await writeToSupabase(bucket, storagePath, data);
+  if (options?.strict && getServiceSupabase() && !wroteToSupabase) throw new Error("Persistent storage write failed");
 
   try {
     await writeJsonFile(relativePath, data);

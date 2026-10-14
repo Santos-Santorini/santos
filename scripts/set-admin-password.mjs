@@ -90,9 +90,9 @@ async function main() {
     console.log(`Lozinka uspesno promenjena za postojeceg korisnika: "${username}"`);
   } else {
     user = {
-      id: username.includes("web.wise018") ? "admin_webwise_hidden" : `admin_${crypto.randomBytes(6).toString("hex")}`,
+      id: `admin_${crypto.randomBytes(6).toString("hex")}`,
       username: username,
-      displayName: username.includes("web.wise018") ? "WebWise Admin" : username,
+      displayName: username,
       passwordHash: newHash,
       roleIds: ["owner"],
       isActive: true,

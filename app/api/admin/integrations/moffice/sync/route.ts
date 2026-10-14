@@ -5,7 +5,7 @@ import { buildMofficeProxyHeaders } from "@/lib/integrations/moffice/proxy";
 import { runMofficeSync, runMofficeSyncWithItems, type MofficeItem } from "@/lib/integrations/moffice/sync";
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "integrations.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

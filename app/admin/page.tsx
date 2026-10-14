@@ -1,3 +1,5 @@
+import { requireAdminPage } from "@/lib/security/adminPage";
+import { hasAdminPermission } from "@/lib/adminAuth";
 import Link from "next/link";
 import { getVercelAnalyticsOverview } from "@/lib/analytics/vercel";
 import { listCatalogProducts } from "@/lib/catalog/store";
@@ -38,14 +40,15 @@ const isWithinDays = (value: string | null | undefined, days: number) => {
 };
 
 export default async function AdminHome() {
+  const viewer = await requireAdminPage("dashboard.view");
   const [catalogStorefront, catalogRaw, posts, runs, orders, contacts, newsletter] = await Promise.all([
     listCatalogProducts({ page: 1, pageSize: 1, activeOnly: true, exportOnly: true, collapseBySku: false }),
     listCatalogProducts({ page: 1, pageSize: 1, activeOnly: false, exportOnly: false, collapseBySku: false }),
     listPosts({ page: 1, pageSize: 1, type: "all", onlyPublished: false }),
-    listSyncRuns(6),
-    listRecentOrders(200),
-    listContactMessages(),
-    listNewsletterSubscribers(),
+    hasAdminPermission(viewer, "integrations.manage") ? listSyncRuns(6) : [],
+    hasAdminPermission(viewer, "webshop.manage") ? listRecentOrders(200) : [],
+    hasAdminPermission(viewer, "customer.manage") ? listContactMessages() : [],
+    hasAdminPermission(viewer, "marketing.manage") ? listNewsletterSubscribers() : [],
   ]);
   const analytics = getVercelAnalyticsOverview();
   const analyticsStats = [

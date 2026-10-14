@@ -8,7 +8,7 @@ import { resetAnanasIntegrationState } from "@/lib/integrations/core/store";
  * Only run this after Ananas confirms they deleted our products on their side.
  */
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "integrations.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

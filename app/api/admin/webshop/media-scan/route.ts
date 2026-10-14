@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req) && !hasCronSecret(req)) {
+  if (!await hasAdminToken(req, "webshop.manage") && !hasCronSecret(req)) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const doc = await getMediaHealth();
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req) && !hasCronSecret(req)) {
+  if (!await hasAdminToken(req, "webshop.manage") && !hasCronSecret(req)) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

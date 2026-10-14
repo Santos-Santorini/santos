@@ -1,3 +1,4 @@
+import { requireAdminPage } from "@/lib/security/adminPage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
@@ -65,6 +66,7 @@ async function loadOrder(id: string): Promise<OrderRecord | null> {
 }
 
 export default async function PackingSlipPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage("webshop.manage");
   const { id } = await params;
   const order = await loadOrder(id);
   if (!order) notFound();

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /** Already-uploaded media, so the admin can reuse a file instead of uploading it twice. */
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "content.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

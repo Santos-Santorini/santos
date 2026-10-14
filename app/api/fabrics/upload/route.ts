@@ -1,3 +1,5 @@
+import { fetchTrustedImage } from "@/lib/security/remoteImage";
+import { hasAdminToken } from "@/lib/auth/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
@@ -120,7 +122,7 @@ const buildAutoDetailBuffer = async (input: Buffer) => {
     .resize(size, size, { fit: "cover", position: "attention", kernel: sharp.kernel.lanczos3 })
     .normalize({ lower: 1, upper: 99 })
     .modulate({ brightness: 1.015, saturation: 1 })
-    .sharpen(1.3, 1.7, 2.3)
+    .sharpen({ sigma: 1.3, m1: 1.7, m2: 2.3 })
     .jpeg({ quality: 92, chromaSubsampling: "4:4:4" })
     .toBuffer();
 };
@@ -135,13 +137,8 @@ const tryBuildAndUploadAutoDetail = async ({
   id: string;
 }) => {
   try {
-    const upstream = await fetch(textureUrl, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!upstream.ok) return null;
-    const src = Buffer.from(await upstream.arrayBuffer());
-    const detailBuffer = await buildAutoDetailBuffer(src);
+    const input = (await fetchTrustedImage(textureUrl)).bytes;
+    const detailBuffer = await buildAutoDetailBuffer(input);
     await ensureBucket(supabase);
     const detailPath = `fabrics/details/auto-${id}-${Date.now()}.jpg`;
     const { error: uploadError } = await supabase.storage
@@ -159,12 +156,21 @@ const tryBuildAndUploadAutoDetail = async ({
 };
 
 export async function POST(req: NextRequest) {
+  if (!(await hasAdminToken(req, "preview.manage"))) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  }
   const supabase = getServiceSupabase();
   if (!supabase) {
     return NextResponse.json({ success: false, message: "Supabase service key missing" }, { status: 503 });
   }
 
   const form = await req.formData();
+  for (const value of form.values()) {
+    if (typeof value !== "string" && value.size > 0 &&
+      (value.size > 10 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(value.type))) {
+      return NextResponse.json({ success: false, message: "Dozvoljene su PNG, JPEG i WebP slike do 10 MB." }, { status: 400 });
+    }
+  }
   const file = form.get("file") as File | null;
   const name = String(form.get("name") || "").trim();
   const tone = (form.get("tone") as string) || "medium";
@@ -286,6 +292,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await hasAdminToken(req, "preview.manage"))) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  }
   const supabase = getServiceSupabase();
   if (!supabase) {
     return NextResponse.json({ success: false, message: "Supabase service key missing" }, { status: 503 });

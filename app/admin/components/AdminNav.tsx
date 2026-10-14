@@ -31,7 +31,7 @@ const navSections: NavSection[] = [
         href: "/admin/analytics",
         label: "Analitika",
         icon: "AN",
-        permission: "dashboard.view",
+        permission: "webshop.manage",
       },
     ],
   },

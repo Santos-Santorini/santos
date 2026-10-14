@@ -82,7 +82,7 @@ type Params = {
 };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "marketing.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "marketing.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

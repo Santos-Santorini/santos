@@ -5,7 +5,7 @@ import { CATALOG_CATEGORY_GROUP_CATALOGUE } from "@/lib/catalog/store";
 import { invalidateCatalogCaches } from "@/lib/catalog/store";
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const settings = await getAutoGroupSettings();
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "catalog.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const payload = await req.json().catch(() => null);

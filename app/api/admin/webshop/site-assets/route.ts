@@ -73,7 +73,7 @@ async function compressImage(buffer: Buffer, mimeType: string): Promise<Buffer> 
 }
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "content.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = path.extname(file.name || "").toLowerCase();
-    if (!ALLOWED_TYPES.has(file.type) && !ALLOWED_EXTENSIONS.has(ext)) {
+    if (!ALLOWED_EXTENSIONS.has(ext) || (file.type && !ALLOWED_TYPES.has(file.type))) {
       return NextResponse.json(
         { success: false, message: `"${file.name}" nije podrzan tip fajla.` },
         { status: 400 },

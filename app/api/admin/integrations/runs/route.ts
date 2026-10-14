@@ -3,7 +3,7 @@ import { hasAdminToken } from "@/lib/auth/admin";
 import { listSyncRuns } from "@/lib/integrations/core/store";
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "integrations.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const limit = Math.max(1, Math.min(200, Number(req.nextUrl.searchParams.get("limit") || 50)));

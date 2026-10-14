@@ -46,9 +46,16 @@ const buildCachedResponse = (body: BodyInit | null, status: number, headers: Hea
   });
 
 const getLocalAsset = async (storagePath: string) => {
-  const fullPath = path.join(process.cwd(), "public", "site-assets", storagePath);
+  const baseDir = path.resolve(process.cwd(), "public", "site-assets");
+  const fullPath = path.resolve(baseDir, storagePath);
+  const relative = path.relative(baseDir, fullPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
 
   try {
+    const realPath = await fs.realpath(fullPath);
+    const realBase = await fs.realpath(baseDir);
+    const realRelative = path.relative(realBase, realPath);
+    if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) return null;
     const [buffer, stats] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
     return { buffer, stats };
   } catch {
@@ -67,6 +74,9 @@ const parseRange = (rangeHeader: string, total: number) => {
 
 export async function GET(req: NextRequest, context: RouteContext) {
   const storagePath = await resolvePath(context);
+  if (!storagePath || storagePath.includes("\\") || storagePath.includes("\0") || storagePath.split("/").some(segment => segment === "." || segment === ".." || segment.includes(":"))) {
+    return new NextResponse("Not found", { status: 404 });
+  }
   const ext = path.extname(storagePath).toLowerCase();
   const isVideo = VIDEO_EXTS.has(ext);
 

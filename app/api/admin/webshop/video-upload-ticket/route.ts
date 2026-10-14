@@ -10,7 +10,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 const BUCKET_NAME = process.env.SUPABASE_PRODUCTS_BUCKET || "products";
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "webshop.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

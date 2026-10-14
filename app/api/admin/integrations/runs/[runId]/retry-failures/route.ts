@@ -6,7 +6,7 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ runId: string }> },
 ) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "integrations.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const { runId } = await context.params;

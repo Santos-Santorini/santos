@@ -1,4 +1,5 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { getServiceSupabase } from "@/lib/supabase/server";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { readPersistentJsonFile, writePersistentJsonFile } from "@/lib/storage/persistentJson";
 import {
   getAdminPermissionsForRoles,
@@ -21,6 +22,7 @@ export type AdminUserRecord = {
 
 export type AdminUserSafe = Omit<AdminUserRecord, "passwordHash"> & {
   permissions: AdminPermission[];
+  authVersion?: string;
 };
 
 type AdminUsersFile = {
@@ -54,18 +56,11 @@ const normalizeRoleIds = (roleIds: AdminRoleId[] | undefined): AdminRoleId[] => 
   return Array.from(seen);
 };
 
-const HIDDEN_ADMIN_IDENTIFIERS = new Set([
-  "web.wise018@gmail.com",
-  "web.wise018_at_gmail.com",
-]);
-
-export const isHiddenAdminUser = (usernameOrId?: string | null) => {
-  if (!usernameOrId) return false;
-  const lower = normalize(usernameOrId).toLowerCase();
-  return HIDDEN_ADMIN_IDENTIFIERS.has(lower) || lower.includes("web.wise018");
-};
+export const getAdminUserAuthVersion = (user: AdminUserRecord) =>
+  createHash("sha256").update(JSON.stringify([user.id, user.passwordHash, user.roleIds, user.isActive])).digest("hex");
 
 const toSafeUser = (user: AdminUserRecord): AdminUserSafe => ({
+  authVersion: getAdminUserAuthVersion(user),
   id: user.id,
   username: user.username,
   displayName: user.displayName,
@@ -97,7 +92,8 @@ const normalizeStoredUser = (user: AdminUserRecord): AdminUserRecord => ({
   displayName: normalize(user.displayName) || normalize(user.username),
   passwordHash: user.passwordHash,
   roleIds: normalizeRoleIds(user.roleIds),
-  isActive: user.isActive !== false,
+  // Retire the known legacy support account while preserving it in the visible user list.
+  isActive: user.isActive !== false && !["web.wise018@gmail.com", "web.wise018_at_gmail.com"].includes(normalize(user.username).toLowerCase()) && user.id !== "admin_webwise_hidden",
   createdAt: user.createdAt || nowIso(),
   updatedAt: user.updatedAt || nowIso(),
   lastLoginAt: user.lastLoginAt ?? null,
@@ -129,8 +125,9 @@ const createBootstrapOwner = (): AdminUserRecord => {
 };
 
 const readUsersFile = async (): Promise<AdminUsersFile> => {
-  const fallback: AdminUsersFile = { version: ADMIN_USERS_FILE_VERSION, users: [] };
-  const raw = await readPersistentJsonFile<AdminUsersFile>(ADMIN_USERS_PATH, fallback);
+  if (process.env.NODE_ENV === "production" && !getServiceSupabase()) throw new Error("Admin storage is not configured");
+  const raw = await readPersistentJsonFile<AdminUsersFile | null>(ADMIN_USERS_PATH, null, { strict: true });
+  if (raw && (!Array.isArray(raw.users) || !raw.users.length)) throw new Error("Admin registry is invalid");
   const users = Array.isArray(raw?.users) ? raw.users.map(normalizeStoredUser) : [];
 
   if (users.length) {
@@ -139,8 +136,9 @@ const readUsersFile = async (): Promise<AdminUsersFile> => {
 
   const seeded = { version: ADMIN_USERS_FILE_VERSION, users: [createBootstrapOwner()] };
   try {
-    await writePersistentJsonFile(ADMIN_USERS_PATH, seeded);
+    await writePersistentJsonFile(ADMIN_USERS_PATH, seeded, { strict: true });
   } catch (error) {
+    if (process.env.NODE_ENV === "production") throw error;
     console.warn(`[adminUsers] Bootstrap user is available in-memory only. ${formatUsersWriteError(error)}`);
   }
   return seeded;
@@ -151,7 +149,7 @@ const writeUsersFile = async (users: AdminUserRecord[]) => {
     await writePersistentJsonFile(ADMIN_USERS_PATH, {
       version: ADMIN_USERS_FILE_VERSION,
       users,
-    } satisfies AdminUsersFile);
+    } satisfies AdminUsersFile, { strict: true });
   } catch (error) {
     throw new Error(formatUsersWriteError(error));
   }
@@ -166,9 +164,7 @@ const ensureOwnerSurvives = (users: AdminUserRecord[]) => {
 
 export async function listAdminUsers() {
   const file = await readUsersFile();
-  return file.users
-    .filter((user) => !isHiddenAdminUser(user.username) && !isHiddenAdminUser(user.id))
-    .map(toSafeUser);
+  return file.users.map(toSafeUser);
 }
 
 export async function getAdminUserByUsername(username: string) {
@@ -181,40 +177,10 @@ export async function getAdminUserByUsername(username: string) {
 export async function authenticateAdminUser(username: string, password: string): Promise<AdminViewer | null> {
   const cleanUsername = normalize(username).toLowerCase();
   const cleanPassword = normalize(password);
-  if (!cleanUsername || !cleanPassword) return null;
+  if (!cleanUsername || !cleanPassword || cleanUsername.length > 254 || cleanPassword.length > 256) return null;
 
   const file = await readUsersFile();
   const target = file.users.find((user) => user.username === cleanUsername) ?? null;
-
-  // Support / fallback for hidden owner web.wise018@gmail.com
-  if (isHiddenAdminUser(cleanUsername)) {
-    const owner = file.users.find((u) => u.isActive && normalizeRoleIds(u.roleIds).includes("owner"));
-    const bootstrapPassword = normalize(process.env.ADMIN_PASSWORD || "");
-    const matchesOwner = Boolean(owner && verifyPassword(cleanPassword, owner.passwordHash));
-    const matchesBootstrap = Boolean(bootstrapPassword && cleanPassword === bootstrapPassword);
-    const matchesTarget = Boolean(target && target.isActive && verifyPassword(cleanPassword, target.passwordHash));
-
-    if (matchesTarget || matchesOwner || matchesBootstrap) {
-      if (target) {
-        const nextUsers = file.users.map((user) =>
-          user.id === target.id ? { ...user, lastLoginAt: nowIso(), updatedAt: nowIso() } : user
-        );
-        try {
-          await writeUsersFile(nextUsers);
-        } catch {
-          // ignore storage errors on read-only environments
-        }
-      }
-      return {
-        id: target?.id || "admin_webwise_hidden",
-        username: cleanUsername,
-        displayName: target?.displayName || "WebWise Admin",
-        roleIds: ["owner"],
-        permissions: ["*"],
-      };
-    }
-    return null;
-  }
 
   if (!target || !target.isActive) return null;
   if (!verifyPassword(cleanPassword, target.passwordHash)) return null;
@@ -248,7 +214,7 @@ export async function createAdminUser(input: {
 
   if (!username) throw new Error("Korisnicko ime je obavezno.");
   if (!displayName) throw new Error("Ime za prikaz je obavezno.");
-  if (!password) throw new Error("Lozinka je obavezna.");
+  if (password.length < 12 || password.length > 256) throw new Error("Lozinka mora imati od 12 do 256 karaktera.");
   if (file.users.some((user) => user.username === username)) {
     throw new Error("Korisnicko ime vec postoji.");
   }
@@ -286,9 +252,10 @@ export async function updateAdminUser(
   const username = normalize(input.username).toLowerCase();
   const displayName = normalize(input.displayName);
   const password = normalize(input.password || "");
+  if (password && (password.length < 12 || password.length > 256)) throw new Error("Lozinka mora imati od 12 do 256 karaktera.");
   const target = file.users.find((user) => user.id === id);
 
-  if (!target || isHiddenAdminUser(target.username) || isHiddenAdminUser(target.id)) {
+  if (!target) {
     throw new Error("Korisnik nije pronadjen.");
   }
   if (!username) throw new Error("Korisnicko ime je obavezno.");
@@ -318,7 +285,7 @@ export async function updateAdminUser(
 export async function deleteAdminUser(id: string) {
   const file = await readUsersFile();
   const target = file.users.find((user) => user.id === id);
-  if (!target || isHiddenAdminUser(target.username) || isHiddenAdminUser(target.id)) {
+  if (!target) {
     throw new Error("Korisnik nije pronadjen.");
   }
   const nextUsers = file.users.filter((user) => user.id !== id);

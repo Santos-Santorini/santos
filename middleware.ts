@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  ADMIN_LEGACY_TOKEN_COOKIE,
   isAdminRequestAuthenticated,
-  isValidLegacyAdminToken,
   sanitizeAdminNextPath,
 } from "@/lib/adminAuth";
 import { updateStorefrontSupabaseSession } from "@/lib/supabase/update-storefront-session";
@@ -129,18 +127,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isValidLegacyAdminToken(req.nextUrl.searchParams.get("token"))) {
-    const token = String(req.nextUrl.searchParams.get("token") || "");
-    const cleanUrl = req.nextUrl.clone();
-    cleanUrl.searchParams.delete("token");
-    const res = NextResponse.redirect(cleanUrl);
-    res.cookies.set(ADMIN_LEGACY_TOKEN_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: req.nextUrl.protocol === "https:",
-      path: "/",
-    });
-    return res;
+  // The cron handler verifies the secret again; no admin cookie is required.
+  if (pathname === "/api/admin/integrations/cron" || pathname === "/api/admin/webshop/media-scan") {
+    const secret = process.env.CRON_SECRET?.trim();
+    if (secret && (req.headers.get("authorization") === `Bearer ${secret}` || req.headers.get("x-cron-secret") === secret)) return NextResponse.next();
   }
 
   if (await isAdminRequestAuthenticated(req)) {

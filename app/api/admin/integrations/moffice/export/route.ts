@@ -33,7 +33,7 @@ const toCsv = (rows: MofficeExportRow[]) => {
 };
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "integrations.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,11 +1,9 @@
+import { getAdminViewerFromCookieStore } from "@/lib/security/adminSession";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import {
-  ADMIN_LEGACY_TOKEN_COOKIE,
   ADMIN_SESSION_COOKIE,
-  isValidLegacyAdminToken,
-  getAdminViewerFromCookieStore,
   sanitizeAdminNextPath,
 } from "@/lib/adminAuth";
 import { isGoogleAdminSignInConfigured } from "@/lib/adminGoogleOAuth";
@@ -34,8 +32,7 @@ export default async function AdminLoginPage({
   const googleSignInEnabled = isGoogleAdminSignInConfigured();
   const cookieStore = await cookies();
   const hasSession =
-    Boolean(await getAdminViewerFromCookieStore(cookieStore)) ||
-    isValidLegacyAdminToken(cookieStore.get(ADMIN_LEGACY_TOKEN_COOKIE)?.value);
+    Boolean(await getAdminViewerFromCookieStore(cookieStore));
 
   if (hasSession) {
     redirect(nextPath);

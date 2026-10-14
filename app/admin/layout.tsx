@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -5,7 +6,7 @@ import { cookies } from "next/headers";
 import AdminNav from "./components/AdminNav";
 import AdminShell from "./components/AdminShell";
 import { buildSeoMetadata } from "@/lib/seo";
-import { getAdminViewerFromCookieStore } from "@/lib/adminAuth";
+import { getAdminViewerFromCookieStore } from "@/lib/security/adminSession";
 import "./admin-shell.css";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export const metadata: Metadata = {
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const generatedAt = new Date().toLocaleString("sr-RS");
   const viewer = await getAdminViewerFromCookieStore(await cookies());
+  if (!viewer) redirect("/admin-login");
 
   return (
     <AdminShell

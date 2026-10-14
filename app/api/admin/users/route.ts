@@ -1,3 +1,4 @@
+import { isTrustedMutation } from "@/lib/security/requestOrigin";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createAdminUser,
@@ -6,11 +7,12 @@ import {
   updateAdminUser,
 } from "@/lib/adminUsers";
 import { getAdminRoleDefinitions, type AdminRoleId } from "@/lib/adminRoles";
-import { getAdminViewerFromRequest, hasAdminPermission } from "@/lib/adminAuth";
+import { getAdminViewerFromRequest, hasAdminPermission } from "@/lib/security/adminSession";
 
 const toRoleIds = (values: string[]): AdminRoleId[] => values.filter(Boolean) as AdminRoleId[];
 
 const getViewer = async (req: NextRequest) => {
+  if (!isTrustedMutation(req)) return null;
   const viewer = await getAdminViewerFromRequest(req);
   if (!hasAdminPermission(viewer, "admin.users.manage")) return null;
   return viewer;

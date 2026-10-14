@@ -3,7 +3,7 @@ import { hasAdminToken } from "@/lib/auth/admin";
 import { getLatestOutboundArtifact } from "@/lib/integrations/core/store";
 
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "integrations.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
   const latest = await getLatestOutboundArtifact();

@@ -45,7 +45,7 @@ const sanitizeFileSegment = (value: string) =>
     .toLowerCase();
 
 export async function POST(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "content.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
  * rather than anything being wrong with the browser or the file.
  */
 export async function GET(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "content.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

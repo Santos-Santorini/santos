@@ -9,6 +9,7 @@ type CookieReader = {
 };
 
 type AdminSessionPayload = {
+  authVersion?: string;
   id: string;
   username: string;
   displayName: string;
@@ -33,11 +34,6 @@ export const getAdminSessionMaxAgeMs = () => {
 };
 
 const normalize = (value: string) => value.trim();
-
-const getAdminCredentials = () => ({
-  username: normalize(process.env.ADMIN_USERNAME || "").toLowerCase(),
-  password: normalize(process.env.ADMIN_PASSWORD || ""),
-});
 
 const getSessionSecretOrNull = () => {
   const envSecret = normalize(process.env.ADMIN_SESSION_SECRET || "");
@@ -87,17 +83,6 @@ const signSessionPayload = async (encodedPayload: string) => {
   return encodeBase64Url(new Uint8Array(signature));
 };
 
-const getLegacyBootstrapViewer = (): AdminViewer => {
-  const credentials = getAdminCredentials();
-  return {
-    id: "admin_owner_bootstrap",
-    username: credentials.username,
-    displayName: "Santos Owner",
-    roleIds: ["owner"],
-    permissions: ["*"],
-  };
-};
-
 const parseSignedSession = async (value?: string | null): Promise<AdminViewer | null> => {
   if (!value || !value.includes(".")) return null;
   if (!getSessionSecretOrNull()) return null;
@@ -113,6 +98,7 @@ const parseSignedSession = async (value?: string | null): Promise<AdminViewer | 
     // Reject sessions with no issue time at all — those predate expiry support
     // and would otherwise be valid forever.
     if (!Number.isFinite(issuedAt) || issuedAt <= 0) return null;
+    if (issuedAt > Date.now() + 60_000) return null;
     if (Date.now() - issuedAt > getAdminSessionMaxAgeMs()) return null;
     const roleIds = Array.isArray(payload?.roleIds) ? payload.roleIds : [];
     const permissions =
@@ -121,6 +107,7 @@ const parseSignedSession = async (value?: string | null): Promise<AdminViewer | 
         : getAdminPermissionsForRoles(roleIds);
     if (!payload?.id || !payload?.username) return null;
     return {
+      authVersion: payload.authVersion,
       id: payload.id,
       username: payload.username,
       displayName: payload.displayName || payload.username,
@@ -144,6 +131,7 @@ const timingSafeEqual = (left: string, right: string) => {
 
 export const buildAdminSessionValue = async (viewer: AdminViewer) => {
   const payload: AdminSessionPayload = {
+    authVersion: viewer.authVersion,
     id: viewer.id,
     username: viewer.username,
     displayName: viewer.displayName,
@@ -161,13 +149,8 @@ export const buildAdminSessionValue = async (viewer: AdminViewer) => {
 export const parseAdminSessionValue = async (value?: string | null): Promise<AdminViewer | null> =>
   parseSignedSession(value);
 
-export const getLegacyAdminAccessToken = () => normalize(process.env.ADMIN_ACCESS_TOKEN || "");
-
-export const isValidLegacyAdminToken = (value?: string | null) => {
-  const expected = getLegacyAdminAccessToken();
-  if (!expected) return false;
-  return normalize(value || "") === expected;
-};
+// Legacy owner tokens are permanently disabled.
+export const isValidLegacyAdminToken = (_value?: string | null) => false;
 
 export const isValidAdminSession = async (value?: string | null) => Boolean(await parseAdminSessionValue(value));
 
@@ -176,20 +159,11 @@ export const getAdminViewerFromCookieStore = async (cookieStore: CookieReader): 
   const sessionViewer = await parseAdminSessionValue(sessionCookie);
   if (sessionViewer) return sessionViewer;
 
-  const legacyCookie = cookieStore.get(ADMIN_LEGACY_TOKEN_COOKIE)?.value;
-  return isValidLegacyAdminToken(legacyCookie) ? getLegacyBootstrapViewer() : null;
+  return null;
 };
 
-export const getAdminViewerFromRequest = async (req: NextRequest): Promise<AdminViewer | null> => {
-  const cookieViewer = await getAdminViewerFromCookieStore(req.cookies);
-  if (cookieViewer) return cookieViewer;
-
-  const headerToken = req.headers.get("x-admin-token");
-  const queryToken = req.nextUrl.searchParams.get("token");
-  return isValidLegacyAdminToken(headerToken) || isValidLegacyAdminToken(queryToken)
-    ? getLegacyBootstrapViewer()
-    : null;
-};
+export const getAdminViewerFromRequest = async (req: NextRequest): Promise<AdminViewer | null> =>
+  getAdminViewerFromCookieStore(req.cookies);
 
 export const isAdminRequestAuthenticated = async (req: NextRequest) => Boolean(await getAdminViewerFromRequest(req));
 
@@ -204,6 +178,7 @@ export const hasAdminPermission = (
 export const sanitizeAdminNextPath = (value?: string | null) => {
   const next = String(value || "").trim();
   if (!next.startsWith("/")) return "/admin";
+  if (next.includes("\\") || /[\x00-\x1f]/.test(next)) return "/admin";
   if (next.startsWith("//")) return "/admin";
   if (next.startsWith("/api/")) return "/admin";
   return next;

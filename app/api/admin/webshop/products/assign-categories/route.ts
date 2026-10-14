@@ -5,7 +5,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { invalidateCatalogCaches } from "@/lib/catalog/store";
 
 export async function PATCH(req: NextRequest) {
-  if (!hasAdminToken(req)) {
+  if (!await hasAdminToken(req, "webshop.manage")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 

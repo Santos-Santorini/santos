@@ -6,29 +6,10 @@ export const ADMIN_GOOGLE_OAUTH_NEXT_COOKIE = "admin_google_oauth_next";
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
-/**
- * Comma-separated env overrides the built-in owner allowlist.
- * Podrazumevano: pun admin (owner + sve permisije) za glavne naloge.
- */
-const defaultAdminGoogleEmails = () => [
-  normalizeEmail("web.wise018@gmail.com"),
-  normalizeEmail("santorini.jocic@gmail.com"),
-];
-
-/**
- * Uvek ukljucuje ugradjene owner mejlove; ADMIN_GOOGLE_ALLOWED_EMAILS ih dodaje (ne zamenjuje),
- * da slucajna lista na Vercelu ne iskljuci pristup.
- */
-export const getAdminGoogleAllowlist = (): string[] => {
-  const raw = process.env.ADMIN_GOOGLE_ALLOWED_EMAILS?.trim();
-  const extra = raw
-    ? raw
-        .split(",")
-        .map((item) => normalizeEmail(item))
-        .filter(Boolean)
-    : [];
-  return [...new Set([...defaultAdminGoogleEmails(), ...extra])];
-};
+/** Only explicitly configured addresses can sign in as an owner. */
+export const getAdminGoogleAllowlist = (): string[] =>
+  [...new Set((process.env.ADMIN_GOOGLE_ALLOWED_EMAILS || "")
+    .split(",").map(normalizeEmail).filter(Boolean))];
 
 export const isGoogleAdminSignInConfigured = () =>
   Boolean(
@@ -144,10 +125,9 @@ export const buildAdminViewerFromGoogleUser = (user: GoogleUserInfo): AdminViewe
   const email = normalizeEmail(String(user.email || ""));
   const sub = String(user.sub || "");
   const displayName = String(user.name || email || "Admin");
-  const username = email.replace(/@/g, "_at_").replace(/[^a-z0-9._-]+/gi, "_");
   return {
     id: `google_${sub}`,
-    username: username || `google_${sub.slice(0, 12)}`,
+    username: email,
     displayName,
     roleIds: ["owner"],
     permissions: ["*"],

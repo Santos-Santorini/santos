@@ -4,7 +4,7 @@ import { runMofficeSync, runMofficeSyncWithItems, type MofficeItem } from "@/lib
 function authorizeCron(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET?.trim();
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return false;
   }
   return true;

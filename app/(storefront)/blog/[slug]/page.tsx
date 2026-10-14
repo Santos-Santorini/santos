@@ -1,3 +1,4 @@
+import { sanitizeContentHtml } from "@/lib/security/html";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/components/seo/JsonLd";
@@ -163,13 +164,13 @@ export default async function BlogDetailPage({
                 className="blog-single__content"
                 dangerouslySetInnerHTML={{
                   __html:
-                    post.bodyHtml ||
+                    sanitizeContentHtml(post.bodyHtml ||
                     `<p>${
                       post.excerpt ||
                       (isEn
                         ? "No content available for this post."
                         : "Sadrzaj trenutno nije dostupan.")
-                    }</p>`,
+                    }</p>`),
                 }}
               />
             </div>

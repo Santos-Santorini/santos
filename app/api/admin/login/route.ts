@@ -1,3 +1,5 @@
+import { isTrustedMutation } from "@/lib/security/requestOrigin";
+import { checkRateLimit, buildRateLimitHeaders } from "@/lib/security/rateLimit";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateAdminUser } from "@/lib/adminUsers";
 import {
@@ -51,6 +53,11 @@ const createInvalidResponse = (req: NextRequest, nextPath: string) => {
 };
 
 export async function POST(req: NextRequest) {
+  if (!isTrustedMutation(req)) return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
+  const options = { limit: 8, windowMs: 15 * 60_000, scope: "admin-login" };
+  const rate = checkRateLimit(req, options);
+  if (!rate.ok) return NextResponse.json({ success: false, message: "Previse pokusaja prijave." }, { status: 429, headers: buildRateLimitHeaders(rate, options.limit) });
+
   const nextFromQuery = sanitizeAdminNextPath(req.nextUrl.searchParams.get("next"));
 
   if (isFormRequest(req)) {

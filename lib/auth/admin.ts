@@ -1,22 +1,18 @@
+import { isTrustedMutation } from "@/lib/security/requestOrigin";
 import type { NextRequest } from "next/server";
+import { getAdminViewerFromRequest, hasAdminPermission } from "@/lib/security/adminSession";
+import type { AdminPermission } from "@/lib/adminRoles";
 
-const ADMIN_ACCESS_TOKEN = process.env.ADMIN_ACCESS_TOKEN?.trim();
-const CRON_SECRET = process.env.CRON_SECRET?.trim();
+export const isAdminProtectionEnabled = true;
 
-export const isAdminProtectionEnabled = Boolean(ADMIN_ACCESS_TOKEN);
-
-export function hasAdminToken(req: NextRequest) {
-  if (!ADMIN_ACCESS_TOKEN) return true;
-  const headerToken = req.headers.get("x-admin-token");
-  const cookieToken = req.cookies.get("admin_token")?.value;
-  return headerToken === ADMIN_ACCESS_TOKEN || cookieToken === ADMIN_ACCESS_TOKEN;
+export async function hasAdminToken(req: NextRequest, permission: AdminPermission = "*") {
+  if (!isTrustedMutation(req)) return false;
+  const viewer = await getAdminViewerFromRequest(req);
+  return hasAdminPermission(viewer, permission);
 }
 
 export function hasCronSecret(req: NextRequest) {
-  if (!CRON_SECRET) return false;
-  const auth = req.headers.get("authorization");
-  const bearer = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
-  const header = req.headers.get("x-cron-secret") || "";
-  return bearer === CRON_SECRET || header === CRON_SECRET;
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) return false;
+  return req.headers.get("authorization") === `Bearer ${secret}` || req.headers.get("x-cron-secret") === secret;
 }
-

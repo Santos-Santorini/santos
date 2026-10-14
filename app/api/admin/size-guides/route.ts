@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminRequestAuthenticated } from "@/lib/adminAuth";
+import { hasAdminToken } from "@/lib/auth/admin";
 import { categoryContentKey } from "@/lib/catalog/categoryContent";
 import {
   getSizeGuideSettings,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/catalog/sizeGuides";
 
 const requireAdmin = async (req: NextRequest) => {
-  if (await isAdminRequestAuthenticated(req)) return null;
+  if (await hasAdminToken(req, "catalog.manage")) return null;
   return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 };
 

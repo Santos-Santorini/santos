@@ -44,6 +44,9 @@ export const checkRateLimit = (req: NextRequest, options: RateLimitOptions): Rat
   const key = `${options.scope}:${getClientKey(req)}`;
   const bucket = buckets.get(key);
 
+  if (!bucket && buckets.size >= MAX_BUCKETS) {
+    return { ok: false, remaining: 0, resetAt: now + options.windowMs, retryAfterSeconds: Math.ceil(options.windowMs / 1000) };
+  }
   if (!bucket || bucket.resetAt <= now) {
     const resetAt = now + options.windowMs;
     buckets.set(key, { hits: 1, resetAt });

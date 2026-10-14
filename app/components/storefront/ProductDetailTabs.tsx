@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeContentHtml } from "@/lib/security/html";
 import { useMemo, useState } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import useAnimationBudget from "@/app/components/motion/useAnimationBudget";
@@ -59,7 +60,7 @@ const formatRichText = (raw: string) => {
 const safeHtml = (value: string | null, lang: StorefrontLanguage) => {
   const decoded = value ? decodeHtmlEntities(value) : "";
   return {
-    __html: decoded.trim().length > 0 ? formatRichText(decoded) : fallbackHtml[lang],
+    __html: decoded.trim().length > 0 ? sanitizeContentHtml(formatRichText(decoded)) : fallbackHtml[lang],
   };
 };
 

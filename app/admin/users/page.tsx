@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getAdminViewerFromCookieStore, hasAdminPermission } from "@/lib/adminAuth";
+import { getAdminViewerFromCookieStore, hasAdminPermission } from "@/lib/security/adminSession";
 import { listAdminUsers } from "@/lib/adminUsers";
 import { getAdminRoleDefinitions } from "@/lib/adminRoles";
 

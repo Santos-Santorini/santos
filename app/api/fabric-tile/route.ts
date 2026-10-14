@@ -1,21 +1,12 @@
+import { fetchTrustedImage, isTrustedImageUrl } from "@/lib/security/remoteImage";
 import { NextResponse } from "next/server";
-import sharp from "sharp";
-
-const ALLOWED_HOST_SUFFIXES = [".supabase.co"];
+import sharp, { type Sharp } from "sharp";
 
 type TileProfile = "default" | "stripe" | "tailored-stripe";
 type TileQuality = "low" | "medium" | "high";
 type StripeOrientation = "vertical" | "horizontal";
 
-const isAllowedUrl = (value: string) => {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") return false;
-    return ALLOWED_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix));
-  } catch {
-    return false;
-  }
-};
+const isAllowedUrl = isTrustedImageUrl;
 
 const normalizeProfile = (value: string | null): TileProfile => {
   const raw = (value ?? "").trim().toLowerCase();
@@ -60,10 +51,10 @@ const clampSize = (value: number, profile: TileProfile) => {
  * blends toward the original so we never fully flatten genuine tonal variation.
  */
 const flattenIllumination = async (
-  img: sharp.Sharp,
+  img: Sharp,
   size: number,
   strength = 0.78
-): Promise<sharp.Sharp> => {
+): Promise<Sharp> => {
   const base = img.clone().removeAlpha().toColourspace("srgb");
   const { data, info } = await base.raw().toBuffer({ resolveWithObject: true });
   const ch = info.channels;
@@ -114,10 +105,10 @@ const flattenIllumination = async (
  * the reason rectify was previously gated to dark tone only).
  */
 const rectifyStripe = async (
-  img: sharp.Sharp,
+  img: Sharp,
   size: number,
   orientation: StripeOrientation = "vertical"
-): Promise<sharp.Sharp> => {
+): Promise<Sharp> => {
   const { data, info } = await img.clone().removeAlpha().toColourspace("srgb").raw().toBuffer({ resolveWithObject: true });
   const ch = info.channels;
   if (ch < 3) return img.removeAlpha();
@@ -200,12 +191,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Invalid url" }, { status: 400 });
   }
 
-  const upstream = await fetch(raw, { cache: "force-cache", next: { revalidate: 86400 } });
-  if (!upstream.ok) {
-    return NextResponse.json({ error: "Upstream fetch failed" }, { status: 502 });
-  }
+  let bytes: Buffer;
+  try { bytes = (await fetchTrustedImage(raw)).bytes; }
+  catch { return NextResponse.json({ error: "Invalid image" }, { status: 400 }); }
 
-  const bytes = Buffer.from(await upstream.arrayBuffer());
   const image = sharp(bytes, { failOn: "none" }).rotate();
   const meta = await image.metadata();
   const width = meta.width ?? tileSize;
@@ -241,7 +230,7 @@ export async function GET(req: Request) {
       const sharpenSigma = quality === "high" ? 0.9 : quality === "low" ? 0.65 : 0.8;
       const sharpenM1 = quality === "high" ? 1.0 : 0.85;
       const sharpenM2 = quality === "high" ? 1.3 : 1.1;
-      pipeline = pipeline.sharpen(sharpenSigma, sharpenM1, sharpenM2);
+      pipeline = pipeline.sharpen({ sigma: sharpenSigma, m1: sharpenM1, m2: sharpenM2 });
     }
   } else {
     // Default profile: flatten only. No percentile `normalize` — on an already-even

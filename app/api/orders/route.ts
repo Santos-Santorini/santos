@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { trackVercelServerEvent } from "@/lib/analytics/vercel";
 import { isMetaCapiConfigured, sendMetaCapiPurchase } from "@/lib/analytics/metaCapi";
-import { isAdminRequestAuthenticated } from "@/lib/adminAuth";
+import { hasAdminToken } from "@/lib/auth/admin";
 import {
   applyFreeDeliveryThreshold,
   evaluateVoucher,
@@ -74,7 +74,7 @@ const reportPurchaseToMeta = async (
 };
 
 const requireAdmin = async (req: NextRequest) => {
-  if (await isAdminRequestAuthenticated(req)) return null;
+  if (await hasAdminToken(req, "webshop.manage")) return null;
   return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 };
 
@@ -130,8 +130,11 @@ export async function POST(req: NextRequest) {
     );
   }
   const supabase = getServiceSupabase();
+  if (!supabase && process.env.NODE_ENV === "production") {
+    return NextResponse.json({ success: false, message: "Porudzbine trenutno nisu dostupne." }, { status: 503 });
+  }
   const payload = await req.json().catch(() => null);
-  if (!payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || JSON.stringify(payload).length > 100_000 || (Array.isArray(payload.items) && payload.items.length > 100)) {
     return NextResponse.json({ success: false, message: "Invalid payload" }, { status: 400 });
   }
 
@@ -412,7 +415,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+      return NextResponse.json({ success: false, message: "Neuspesna obrada porudzbine." }, { status: 500 });
     }
 
     const orderId = String((data as { id?: string | number } | null)?.id || "");
@@ -449,7 +452,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Invalid payload" }, { status: 400 });
   }
 
-  const { config, price, fabricId, contact, note, status } = payload;
+  const { config, fabricId, contact, note } = payload;
+  // Public custom configurations are unpriced drafts. An admin must review them.
+  const price = null;
+  const status = "draft";
   let publicOrderNumber: number;
   if (!supabase) {
     publicOrderNumber = getNextPublicOrderNumber(await readOrdersFile());
@@ -457,7 +463,11 @@ export async function POST(req: NextRequest) {
     publicOrderNumber = await getNextSupabasePublicOrderNumber(supabase);
   }
   const configWithPublicNumber = {
-    ...(config && typeof config === "object" ? config : {}),
+    ...Object.fromEntries(Object.entries(config && typeof config === "object" ? config : {})
+      .filter(([key, value]) => ["styleId", "colorId", "buttonId", "materialId", "lapelId", "lapelWidthId", "pocketId", "interiorId", "breastPocketId", "cuffId", "showShirt", "pantsPleatId", "vestEnabled", "vestStyleId", "previewGarment"].includes(key)
+        && (typeof value === "boolean" || (typeof value === "string" && value.length <= 128)))),
+    source: "custom-suits",
+    type: "quote",
     publicOrderNumber,
   };
   const entry = {
@@ -492,7 +502,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Neuspesna obrada porudzbine." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, orderId: (data as { id?: string | number } | null)?.id, orderNumber: publicOrderNumber });
@@ -518,7 +528,7 @@ export async function GET(req: NextRequest) {
     .limit(200);
 
   if (error) {
-    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Neuspesna obrada porudzbine." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, data: data ?? [] });
@@ -579,7 +589,7 @@ export async function PATCH(req: NextRequest) {
 
     const { error } = await supabase.from("orders").update(updates as never).eq("id", id);
     if (error) {
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+      return NextResponse.json({ success: false, message: "Neuspesna obrada porudzbine." }, { status: 500 });
     }
   }
 

@@ -1,3 +1,5 @@
+import { fetchTrustedImage } from "@/lib/security/remoteImage";
+import { hasAdminToken } from "@/lib/auth/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import sharp from "sharp";
@@ -142,12 +144,7 @@ const normalizeButtonImage = async (
 };
 
 const downloadImageBuffer = async (url: string) => {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch image: ${res.status}`);
-  }
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  return (await fetchTrustedImage(url)).bytes;
 };
 
 const getReferenceVisibleRatio = async (supabase: ReturnType<typeof getServiceSupabase>) => {
@@ -203,12 +200,21 @@ const ensureBucket = async (supabase: ReturnType<typeof getServiceSupabase>) => 
 };
 
 export async function POST(req: NextRequest) {
+  if (!(await hasAdminToken(req, "preview.manage"))) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  }
   const supabase = getServiceSupabase();
   if (!supabase) {
     return NextResponse.json({ success: false, message: "Supabase service key missing" }, { status: 503 });
   }
 
   const form = await req.formData();
+  for (const value of form.values()) {
+    if (typeof value !== "string" && value.size > 0 &&
+      (value.size > 10 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(value.type))) {
+      return NextResponse.json({ success: false, message: "Dozvoljene su PNG, JPEG i WebP slike do 10 MB." }, { status: 400 });
+    }
+  }
   const file = form.get("file") as File | null;
   const imageOverride = String(form.get("image_url") || form.get("imageUrl") || "").trim();
   const name = String(form.get("name") || "").trim();
@@ -286,6 +292,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await hasAdminToken(req, "preview.manage"))) {
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  }
   const supabase = getServiceSupabase();
   if (!supabase) {
     return NextResponse.json({ success: false, message: "Supabase service key missing" }, { status: 503 });
